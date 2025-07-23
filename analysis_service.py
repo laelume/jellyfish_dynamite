@@ -32,12 +32,12 @@ class AnalysisService:
         try:
             # Remove dir_name from params for the analysis function only
             analysis_params = {k: v for k, v in params.items() if k != 'dir_name'}
-            
-            # Separate analysis params from HTML generation params
-            analysis_params = {
-                k: v for k, v in params.items() 
-                if k not in ['dir_name', 'use_db_scale']
-            }
+
+            # # Separate analysis params from HTML generation params
+            # analysis_params = {
+            #     k: v for k, v in params.items() 
+            #     if k not in ['dir_name', 'use_db_scale']
+            # }
 
             # Run analysis
             fig, plots, _, dir_short_name = jelbrow.compare_methods_psd_analysis(

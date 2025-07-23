@@ -4,6 +4,11 @@
 Jellyfish Dynamite Flask App
 Interactive PSD Analysis Tool
 """
+import os
+os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['NUMBA_NUM_THREADS'] = '1'
+
 import sys
 
 # Check Python version with platform-specific help
