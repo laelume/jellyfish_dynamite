@@ -59,7 +59,7 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
 
 4. **Run the application:**
    ```bash
-   python jelly_app.py
+   python jelly_jelly_app.py
    ```
 
 5. **Open browser** and go to:
@@ -94,7 +94,7 @@ pip install -r requirements-jupyter.txt
 ### 1. Flask Web App (Featured)
 **Use Case**: Quick install, batch processing, easy file upload
 ```bash
-python app.py
+python jelly_app.py
 ```
 # Go to http://localhost:5000
 
@@ -198,7 +198,7 @@ python jellyfish_plotly_browser.py
 
 5. **Run the Flask application**:
    ```bash
-   python jelly_app.py
+   python jelly_jelly_app.py
    ```
 
 6. **Open browser** and navigate to:
