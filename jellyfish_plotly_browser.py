@@ -1214,7 +1214,7 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
                            plot_fmin=100, plot_fmax=6000,
                            height_percentile=0.6, prominence_factor=0.05,
                            min_width=0.6, methods=None, 
-                           selected_files=None, use_db_scale=True):
+                           selected_files=None, use_db_scale=False):
     """
     Create an interactive PSD analysis for all audio files, using multiple methods.
     Each row displays a different audio file, and each column shows a different method.
