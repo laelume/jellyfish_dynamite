@@ -1,0 +1,2652 @@
+<!--jellyfish_dynamite_plotly.html-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="utf-8" />
+    <style>
+        /* CSS Styling */
+        .js-plotly-plot .plotly .nsewdrag {
+            cursor: grab !important;
+        }
+
+        .js-plotly-plot .plotly .nsewdrag.dragging {
+            cursor: grabbing !important;
+        }
+
+        .js-plotly-plot .plotly .nsewdrag:active {
+            cursor: grabbing !important;
+        }
+
+        .plotly-graph-div {
+            cursor: auto;
+        }
+
+        .js-plotly-plot .plotly .cursor-pointer {
+            cursor: pointer !important;
+        }
+
+        .js-plotly-plot .plotly .xtitle, .js-plotly-plot .plotly .ytitle {
+            font-weight: bold !important;
+        }
+
+        /* Title bar container*/
+        .instructions {
+            width: 1000px;
+            max-width: 1000px;
+            margin: 20px auto;
+            background-color: #f5f8fa;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .instructions h2 {
+            color: #2c3e50;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+        .instructions .controls {
+            display: flex;
+            gap: 5px;
+            flex-wrap: nowrap;
+        }
+
+        .instructions .section {
+            flex: 1; 
+            min-width: 22%;
+        }
+        
+        .instructions h3 {
+            color: #3498db;
+        }
+
+        .instructions ul {
+            list-style-type: none;
+            padding-left: 10px;
+        }
+
+        .instructions .highlight {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+
+        /* Active subplot overlay */
+        .subplot-overlay {
+            position: absolute;
+            pointer-events: none;
+            border: 3px solid #f4b6ca;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(112, 67, 82, 0.4);
+            background: rgba(172, 70, 222, 0.05);
+            z-index: 999;
+        }
+
+        .control-panel {
+            position: fixed;
+            /* top: 10px; */
+            /* right: 10px; */
+            background: rgba(101, 152, 103, 0.95);
+            border: 1px solid #03f644;
+            border-radius: 4px;
+            padding: 8px;
+            max-width: 1000px;
+            min-width: 400px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .control-panel h4 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 12px;
+        }
+
+        .control-panel button {
+            display: block;
+            width: 100%;
+            margin: 2px 0;
+            padding: 4px;
+            background: #3498db;
+            color: rgb(116, 189, 129);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        .control-panel button:hover {
+            background: #2980b9;
+        }
+
+        .control-panel button.danger {
+            background: #e74c3c;
+        }
+
+        .control-panel button.danger:hover {
+            background: #c0392b;
+        }
+
+        .status-display {
+            font-size: 9px;
+            color: #555;
+            margin-top:50px;
+            padding: 4px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .pair-item {
+            margin: 2px 0;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        /* Mobile-specific adjustments */
+        @media (max-width: 768px) {
+            .instructions {
+                margin: 10px;
+                padding: 10px;
+            }
+
+            .instructions .section {
+                min-width: 100%;
+            }
+
+            .control-panel {
+                position: relative;
+                margin: 10px;
+                left: auto !important;
+                top: auto !important;
+                width: auto !important;
+            }
+
+            .js-plotly-plot {
+                height: auto !important;
+                width: 100% !important;
+            }
+
+            .plotly .main-svg {
+                width: 100% !important;
+            }
+
+            .modebar-container {
+                transform: scale(0.8);
+                transform-origin: top right;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #121212 !important;
+                color: #e0e0e0 !important;
+            }
+
+            .instructions {
+                background-color: #424242 !important;
+                color: #e0e0e0 !important;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+            }
+
+            .instructions h2 {
+                color: #e0e0e0 !important;
+                border-bottom: 1px solid #444 !important;
+            }
+
+            .instructions h3 {
+                color: #398c91 !important;
+            }
+
+            .instructions .highlight {
+                color: #e6875e !important;
+            }
+
+            .control-panel {
+                background: rgba(42, 42, 42, 0.95) !important;
+                border: 1px solid #555 !important;
+                color: #e0e0e0 !important;
+            }
+
+            .control-panel h4 {
+                color: #e0e0e0 !important;
+            }
+
+            .status-display {
+                background: #333 !important;
+                color: #e0e0e0 !important;
+            }
+
+            .js-plotly-plot .plotly .hoverlayer .hover,
+            .js-plotly-plot .plotly .annotation-text {
+                background-color: rgba(70, 70, 70, 0.9) !important;
+                color: #e0e0e0 !important;
+                border: 1px solid #555555 !important;
+            }
+
+            .js-plotly-plot .plotly .hoverlayer .hover text,
+            .js-plotly-plot .plotly .annotation-text text {
+                fill: #e0e0e0 !important;
+            }
+
+            .js-plotly-plot .plotly .plot-container {
+                background-color: #222222 !important;
+            }
+
+            .js-plotly-plot .plotly .xaxis .xtick text,
+            .js-plotly-plot .plotly .yaxis .ytick text,
+            .js-plotly-plot .plotly .xtitle, 
+            .js-plotly-plot .plotly .ytitle {
+                fill: #e0e0e0 !important;
+            }
+
+            .js-plotly-plot .plotly .gtitle {
+                fill: #ffffff !important;
+            }
+
+            .js-plotly-plot .plotly .gridlayer path {
+                stroke: rgba(150, 150, 150, 0.2) !important;
+            }
+
+            .modebar {
+                background-color: rgba(50, 50, 50, 0.7) !important;
+            }
+
+            .modebar-btn path {
+                fill: #e0e0e0 !important;
+            }
+        }
+
+        .js-plotly-plot text {
+            font-family: 'Arial', sans-serif !important;
+        }
+
+        .scale-toggle {
+            margin: 8px 0;
+            text-align: center;
+        }
+
+        .toggle-label {
+            font-size: 11px;
+            color: #555;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 70px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            transition: all 0.3s ease;
+            border-radius: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border: 2px solid #2c3e50;
+        }
+
+        .toggle-text {
+            font-size: 9px;
+            color: white;
+            font-weight: bold;
+            z-index: 2;
+            transition: all 0.3s ease;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .toggle-text.left {
+            margin-left: 2px;
+        }
+
+        .toggle-text.right {
+            margin-right: 2px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 2px;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            transition: all 0.3s ease;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1px solid #e0e0e0;
+        }
+
+        /* Checked state - Linear mode */
+        input:checked + .slider {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(38px);
+        }
+
+        /* Hover effects */
+        .slider:hover {
+            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+            transform: translateY(-1px);
+        }
+
+        .slider:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Active text highlighting */
+        input:not(:checked) + .slider .toggle-text.left {
+            color: #ffffff;
+            font-weight: 900;
+        }
+
+        input:not(:checked) + .slider .toggle-text.right {
+            color: rgba(255,255,255,0.6);
+            font-weight: normal;
+        }
+
+        input:checked + .slider .toggle-text.left {
+            color: rgba(255,255,255,0.6);
+            font-weight: normal;
+        }
+
+        input:checked + .slider .toggle-text.right {
+            color: #ffffff;
+            font-weight: 900;
+        }
+
+        /* Dark mode support for toggle */
+        @media (prefers-color-scheme: dark) {
+            .toggle-label {
+                color: #e0e0e0 !important;
+            }
+            
+            .slider {
+                border-color: #555 !important;
+            }
+            
+            .slider:before {
+                background: linear-gradient(135deg, #2a2a2a, #333333) !important;
+                border-color: #555 !important;
+            }
+        }
+
+
+        /* Data Table Styling */
+        .data-table-container {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            max-width: 800px;
+            max-height: 50%va;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 11px;
+        }
+
+        .data-table-container h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .export-btn, .toggle-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .export-btn {
+            background: #27ae60;
+            color: white;
+        }
+
+        .export-btn:hover {
+            background: #2ecc71;
+        }
+
+        .toggle-btn {
+            background: #34495e;
+            color: white;
+        }
+
+        .toggle-btn:hover {
+            background: #2c3e50;
+        }
+
+        .table-wrapper {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #analysisTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+
+        #analysisTable th,
+        #analysisTable td {
+            padding: 4px 8px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        #analysisTable th {
+            background: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        #analysisTable tr:hover {
+            background: #f5f5f5;
+        }
+
+        .color-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            border: 1px solid #ccc;
+            vertical-align: middle;
+        }
+
+        /* Dark mode support for table */
+        @media (prefers-color-scheme: dark) {
+            .data-table-container {
+                background: rgba(42, 42, 42, 0.95) !important;
+                border: 1px solid #555 !important;
+                color: #e0e0e0 !important;
+            }
+            
+            .data-table-container h4 {
+                color: #e0e0e0 !important;
+            }
+            
+            #analysisTable th {
+                background: #333 !important;
+                color: #e0e0e0 !important;
+            }
+            
+            #analysisTable tr:hover {
+                background: #444 !important;
+            }
+            
+            .table-wrapper {
+                border-color: #555 !important;
+            }
+            
+            #analysisTable th,
+            #analysisTable td {
+                border-bottom-color: #555 !important;
+            }
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .data-table-container {
+                position: relative;
+                max-width: 100%;
+                margin: 10px;
+                right: auto;
+                bottom: auto;
+            }
+            
+            #analysisTable {
+                font-size: 9px;
+            }
+            
+            #analysisTable th,
+            #analysisTable td {
+                padding: 2px 4px;
+            }
+        }
+    
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h2>Jellyfish Dynamite (plotly): {{DIR_NAME}} - Dynamic Interactive PSD Analysis</h2>
+        <div class="controls">
+
+            <div class="section">
+                <h3>Control Panel:</h3>
+                <ul>
+                    <li><button onclick="selectHighestPeakForAllSubplots()">Select Highest PSD Values</button></li>
+                    <li><button onclick="selectSecondHighestPeakForAllSubplots()">Select 2nd Highest PSD Values</button></li>
+                    <li><button onclick="selectThirdHighestPeakForAllSubplots()">Select 3rd Highest PSD Values</button></li>
+                    <li><button onclick="removeAllConnectingLines()">Remove All Lines</button></li>
+                    <li><button onclick="resetAllData()" class="danger">Reset All Data</button></li>
+                    <li><button onclick="clearActiveSelections()">Clear Active Plot</button></li>
+                    <li><button onclick="connectAllPeaks()">Auto-Connect Everything</button></li>
+                    <li><button onclick="showMatrixAnalysis()">Matrix View</button></li>
+                    <li><button onclick="exportData()">Export JSON Data</button></li>
+                    <li>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="scaleToggle" onchange="toggleScaleMode()" {{'' if USE_DB_SCALE == 'true' else 'checked'}}>
+                            <span class="slider">
+                                <span class="toggle-text left">dB</span>
+                                <span class="toggle-text right">Lin</span>
+                            </span>
+                        </label>
+                        <div class="toggle-label">Y-axis Scale</div>
+                    </li>
+                </ul>
+            </div>
+            <div class="section">
+                <h3>Peak Selection:</h3>
+                <ul>
+                    <li><span class="highlight">Left-click</span> on peaks to select them</li>
+                    <li><span class="highlight">Ctrl+click</span> to add/remove peak</li>
+                    <li><span class="highlight">Double-click</span> to remove selected peak</li>
+                    <li><span class="highlight">Triple-click</span> to clear all selections</li>
+                </ul>
+            </div>
+            <div class="section">
+                <h3>Harmonic Pair Creation:</h3>
+                <ul>
+                    <li><span class="highlight">Right-click</span> to pair last 2 selected peaks</li>
+                    <li><span class="highlight">Double right-click</span> to remove pair</li>
+                    <li><span class="highlight">Triple right-click</span> to remove all pairs</li>
+                </ul>
+            </div>
+            <div class="section">
+                <h3>Keyboard Shortcuts:</h3>
+                <ul>
+                    <li><span class="highlight">L</span> - Remove all connecting lines (keep peaks)</li>
+                    <li><span class="highlight">C</span> - Clear active / selected graph</li>
+                    <li><span class="highlight">R</span> - Reset everything</li>
+                    <li><span class="highlight">A</span> - Auto-connect all points</li>
+                    <li><span class="highlight">M</span> - Show matrix analysis</li>
+                    <li><span class="highlight">1</span> - Select highest PSD peak for all subplots</li>
+                    <li><span class="highlight">2</span> - Select 2nd highest PSD peak for all subplots</li>
+                    <li><span class="highlight">3</span> - Select 3rd highest PSD peak for all subplots</li>
+                    <li><span class="highlight">D</span> - Toggled dB ↔ Linear scale</li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <h4>Action Log</h4>
+        <!-- <button onclick="clearAllSelections()">Clear Selections</button>
+        <button onclick="resetAllData()" class="danger">Reset All</button>
+        <button onclick="connectAllPeaks()">Auto-Connect</button>
+        <button onclick="showMatrixAnalysis()">Matrix View</button>
+        <button onclick="exportData()">Export Data</button> -->
+
+        <!-- Linear/dB Scale Toggle Switch -->
+        <!-- <div class="scale-toggle">
+            <label class="toggle-switch">
+                <input type="checkbox" id="scaleToggle" onchange="toggleScaleMode()" {{'' if USE_DB_SCALE == 'true' else 'checked'}}>
+                <span class="slider">
+                    <span class="toggle-text left">dB</span>
+                    <span class="toggle-text right">Lin</span>
+                </span>
+            </label>
+            <div class="toggle-label">Y-axis Scale</div>
+        </div> -->
+
+        <div class="status-display" id="statusDisplay">
+            Click on peaks to begin analysis...
+        </div>
+    </div>
+
+    
+    <!-- Peak Legend
+    <div class="peak-legend" id="peakLegend">
+        <h4>Harmonic Pairs</h4>
+        <div id="pairsList">No pairs created yet</div>
+    </div> -->
+
+    
+    <!-- Live Data Table -->
+    <div class="data-table-container" id="dataTableContainer">
+        <h4>Live Analysis Data</h4>
+        <div class="table-controls">
+            <button onclick="exportToCSV()" class="export-btn">📊 Export CSV</button>
+            <button onclick="toggleTableVisibility()" class="toggle-btn" id="tableToggleBtn">Hide Table</button>
+        </div>
+        <div class="table-wrapper" id="tableWrapper">
+            <table id="analysisTable">
+                <thead>
+                    <tr>
+                        <th>Plot</th>
+                        <th>Type</th>
+                        <th>Frequency (Hz)</th>
+                        <th>PSD Value</th>
+                        <th>Pair Partner</th>
+                        <th>Ratio</th>
+                        <th>Color</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="7">No data selected</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+    <!-- Dynamic plot container -->
+    <div>
+        <script type="text/javascript">window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
+        <script charset="utf-8" src="https://cdn.plot.ly/plotly-3.0.0.min.js"></script>
+        <div id="{{PLOT_ID}}" class="plotly-graph-div" style="height:{{PLOT_HEIGHT}}px; width:{{PLOT_WIDTH}}px;"></div>
+        <script type="text/javascript">
+            window.PLOTLYENV = window.PLOTLYENV || {};
+            if (document.getElementById("{{PLOT_ID}}")) {
+                Plotly.newPlot(
+                    "{{PLOT_ID}}",
+                    {{PLOT_DATA}},
+                    {{LAYOUT_DATA}},
+                    {
+                        "responsive": true, 
+                        "displayModeBar": true, 
+                        "scrollZoom": true, 
+                        "modeBarButtonsToAdd": ["drawline", "eraseshape"], 
+                        "displaylogo": false, 
+                        "editable": false, 
+                        "staticPlot": false
+                    }
+                );
+
+                Plotly.relayout("{{PLOT_ID}}", {
+                    title: "Interactive PSD Analysis - Dir: {{DIR_NAME}}"
+                });
+
+                setTimeout(function() {
+                    const plotDiv = document.getElementById("{{PLOT_ID}}");
+                    console.log("=== DEBUGGING PLOTLY DATA ===");
+                    if (plotDiv && plotDiv._fullData) {
+                        plotDiv._fullData.forEach((trace, index) => {
+                            console.log(`Trace ${index} (${trace.name}):`);
+                            console.log("  meta exists:", !!trace.meta);
+                            console.log("  customdata exists:", !!trace.customdata);
+                            if (trace.meta) {
+                                console.log("  meta:", trace.meta);
+                                console.log("  meta keys:", Object.keys(trace.meta));
+                                console.log("  scale_type:", trace.meta.scale_type);
+                                if (trace.meta.linear_psd) {
+                                    console.log("  linear_psd length:", trace.meta.linear_psd.length);
+                                    console.log("  linear_psd sample:", trace.meta.linear_psd.slice(0, 3));
+                                }
+                                if (trace.meta.db_psd) {
+                                    console.log("  db_psd length:", trace.meta.db_psd.length);
+                                    console.log("  db_psd sample:", trace.meta.db_psd.slice(0, 3));
+                                }
+                                if (trace.meta.linear_powers) {
+                                    console.log("  linear_powers:", trace.meta.linear_powers);
+                                }
+                                if (trace.meta.db_powers) {
+                                    console.log("  db_powers:", trace.meta.db_powers);
+                                }
+                            }
+                            console.log("---");
+                        });
+                    }
+                    console.log("=== END DEBUG ===");
+                }, 2000);
+
+
+            }
+        </script>
+    </div>
+
+    <!-- Enhanced Interactive JavaScript -->
+    <script>
+
+    // Global variables for interaction state
+    let plotData = [];
+    
+    let interactionState = {
+        selectedPeaks: new Map(), // Map of plotIndex -> Set of frequencies
+        pairs: new Map(), // Map of plotIndex -> Array of pairs
+        lastClickTime: 0,
+        lastClickButton: null,
+        doubleClickTime: 0,
+        colors: ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'cyan', 'magenta'],
+        clickTolerance: 50, // Frequency tolerance for peak detection
+        maxPairs: 10
+    };
+    
+    let activeSubplotIndex = 0; // Track active subplot
+
+    // Network graph for advanced analysis
+    let harmonicGraphs = new Map(); // Map of plotIndex -> graph structure
+    
+    // Track current scale globally - Initialize from template
+    let currentScale = {{USE_DB_SCALE}} === 'true' ? 'db' : 'linear';
+
+    const subplotTitles = {{SUBPLOT_TITLES}};
+
+    function initializeScaleToggle() {
+        const checkbox = document.getElementById('scaleToggle');
+        const useDbScale = '{{USE_DB_SCALE}}' === 'true';
+        
+        // Set checkbox state to match initial scale
+        checkbox.checked = !useDbScale; // Checked = linear, unchecked = dB
+        currentScale = useDbScale ? 'db' : 'linear';
+        
+        console.log(`Initialized scale toggle: ${currentScale} scale`);
+    }
+
+    // Initialize after Plotly loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // setTimeout(initializeInteractivity, 1000);
+        setTimeout(function() {
+            initializeScaleToggle();
+            initializeInteractivity();
+            
+            // ADD THESE NEW LINES:
+            resizeDataTable();
+            resizeControlPanel();
+
+            window.addEventListener('resize', resizeDataTable);
+            window.addEventListener('resize', resizeControlPanel);
+
+            const plotDiv = document.getElementById('{{PLOT_ID}}');
+            if (plotDiv) {
+                plotDiv.on('plotly_relayout', resizeDataTable);
+                plotDiv.on('plotly_relayout', resizeControlPanel);
+            }
+        }, 1000);
+    });
+
+    function initializeInteractivity() {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        if (!plotDiv || !plotDiv._fullData) {
+            console.log('Plot not ready, retrying...');
+            setTimeout(initializeInteractivity, 500);
+            return;
+        }
+        console.log('Initializing PSD interactivity...');
+        
+        // Extract plot data and detect peaks
+        extractPlotData();
+        
+        // Set up event listeners
+        setupEventListeners();
+        
+        updateStatusDisplay('Interactive analysis ready. Click on peaks to select them.');
+    }
+
+    function extractPlotData() {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const data = plotDiv._fullData;
+        const layout = plotDiv._fullLayout;
+        
+        plotData = [];
+        
+        // Group traces by subplot
+        const subplotTraces = new Map();
+        
+        data.forEach((trace, index) => {
+            if (!trace.x || !trace.y) return;
+            
+            // Determine subplot from xaxis/yaxis references
+            const xaxis = trace.xaxis || 'x';
+            const yaxis = trace.yaxis || 'y';
+            const subplotKey = `${xaxis}-${yaxis}`;
+            
+            if (!subplotTraces.has(subplotKey)) {
+                subplotTraces.set(subplotKey, {
+                    plotIndex: subplotTraces.size,
+                    xaxis: xaxis,
+                    yaxis: yaxis,
+                    traces: [],
+                    traceIndices: [] // Store original trace indices
+                });
+            }
+            
+            subplotTraces.get(subplotKey).traces.push({
+                x: trace.x,
+                y: trace.y,
+                name: trace.name || `trace_${index}`,
+                mode: trace.mode || 'lines',
+                meta: trace.meta || null
+            });
+            subplotTraces.get(subplotKey).traceIndices.push(index);
+        });
+        
+        // Convert to plotData format
+        subplotTraces.forEach((subplot, key) => {
+            const mainTrace = subplot.traces.find(t => t.mode.includes('lines')) || subplot.traces[0];
+            const peakTrace = subplot.traces.find(t => t.mode.includes('markers') && !t.mode.includes('lines'));
+            
+            if (mainTrace) {
+                plotData.push({
+                    plotIndex: subplot.plotIndex,
+                    xaxis: subplot.xaxis,
+                    yaxis: subplot.yaxis,
+                    frequencies: mainTrace.x,
+                    psd_db: mainTrace.y,
+                    peak_freqs: peakTrace ? peakTrace.x : findPeaksInData(mainTrace.x, mainTrace.y),
+                    peak_powers: peakTrace ? peakTrace.y : findPeakPowersInData(mainTrace.x, mainTrace.y, peakTrace ? peakTrace.x : findPeaksInData(mainTrace.x, mainTrace.y)),
+                    filename: extractFilenameFromTitle(layout, subplot.plotIndex),
+                    // Store trace indices for easy lookup
+                    mainTraceIndex: subplot.traceIndices[subplot.traces.indexOf(mainTrace)],
+                    peakTraceIndex: peakTrace ? subplot.traceIndices[subplot.traces.indexOf(peakTrace)] : null,
+                    // Store both scale data if available
+                    meta: mainTrace.meta
+                });
+            }
+        });
+        
+        // Initialize interaction state for each plot
+        plotData.forEach(plot => {
+            interactionState.selectedPeaks.set(plot.plotIndex, new Set());
+            interactionState.pairs.set(plot.plotIndex, []);
+            harmonicGraphs.set(plot.plotIndex, { nodes: new Set(), edges: new Set() });
+        });
+        
+        console.log(`Extracted data for ${plotData.length} subplots`);
+    }
+
+    function findPeaksInData(x, y) {
+        const peaks = [];
+        const threshold = Math.max(...y) * 0.1; // 10% of max as threshold
+        
+        for (let i = 1; i < y.length - 1; i++) {
+            if (y[i] > y[i-1] && y[i] > y[i+1] && y[i] > threshold) {
+                peaks.push(x[i]);
+            }
+        }
+        
+        return peaks;
+    }
+
+    function findPeakPowersInData(x, y, peakFreqs) {
+        return peakFreqs.map(freq => {
+            const idx = x.findIndex(f => Math.abs(f - freq) < 1);
+            return idx >= 0 ? y[idx] : 0;
+        });
+    }
+
+    function extractFilenameFromTitle(layout, plotIndex) {
+        const titleKey = plotIndex === 0 ? 'title' : `title${plotIndex + 1}`;
+        return layout[titleKey]?.text || `Plot ${plotIndex + 1}`;
+    }
+
+    function setupEventListeners() {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        
+        // Click events
+        plotDiv.on('plotly_click', handleClick);
+                
+        // Add general plot area click handler
+        plotDiv.addEventListener('click', function(e) {
+            // Create a data-like object for consistency
+            handlePlotAreaClick({ event: e });
+        });
+
+        // Context menu for right-click
+        plotDiv.addEventListener('contextmenu', handleRightClick);
+        
+        // Keyboard events
+        document.addEventListener('keypress', handleKeyPress);
+        
+        // Prevent default context menu
+        plotDiv.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+
+    function handleClick(data) {
+        if (!data.points || data.points.length === 0) return;
+        
+        const point = data.points[0];
+        const plotIndex = getPlotIndexFromPoint(point);
+        setActiveSubplot(plotIndex);
+        const clickX = point.x;  // This is the frequency where user clicked
+        const clickY = point.y;  // This is the PSD value where user clicked
+        
+        // Check for modifier keys
+        const isCtrlClick = data.event && (data.event.ctrlKey || data.event.metaKey);
+        
+        const currentTime = Date.now();
+        const timeDiff = currentTime - interactionState.lastClickTime;
+        const isDoubleClick = timeDiff < 400 && interactionState.lastClickButton === 1;
+        const isTripleClick = timeDiff < 400 && (currentTime - interactionState.doubleClickTime) < 600;
+        
+        if (isDoubleClick && !isTripleClick) {
+            interactionState.doubleClickTime = currentTime;
+        }
+        
+        interactionState.lastClickTime = currentTime;
+        interactionState.lastClickButton = 1;
+
+        
+        
+        // Check if clicking near an existing grey peak (for removal operations)
+        const nearestPeak = findNearestPeak(plotIndex, clickX);
+        
+        if (isTripleClick) {
+            // Triple-click: clear all selections for active plot
+            clearActiveSelections();
+        } else if (isCtrlClick && nearestPeak !== null) {
+            // Ctrl+click near existing peak: ALWAYS remove (never select)
+            removePeak(plotIndex, nearestPeak);
+            updateStatusDisplay(`Ctrl+click: Removed peak at ${nearestPeak.toFixed(1)} Hz`);
+        } else if (isDoubleClick && nearestPeak !== null) {
+            // Double-click near existing peak: remove peak
+            removePeak(plotIndex, nearestPeak);
+            updateStatusDisplay(`Double-click: Removed peak at ${nearestPeak.toFixed(1)} Hz`);
+        } else {
+            // Single click ANYWHERE: add peak at clicked location
+            addPeakAtLocation(plotIndex, clickX, clickY);
+            updateStatusDisplay(`Added peak at ${clickX.toFixed(1)} Hz`);
+        }
+        
+        updateDisplay(plotIndex);
+    }
+
+
+    function handlePlotAreaClick(data) {
+        if (!data || !data.event) return;
+        
+        // Use absolute screen coordinates
+        const plotIndex = getSubplotFromPixelCoordinates(data.event.clientX, data.event.clientY);
+        
+        if (plotIndex !== null && activeSubplotIndex !== plotIndex) {
+            setActiveSubplot(plotIndex);
+        }
+    }
+
+    function getSubplotFromPixelCoordinates(pixelX, pixelY) {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const layout = plotDiv._fullLayout;
+        if (!layout) return null;
+        
+        // Get the plot's bounding rectangle (accounts for scrolling)
+        const plotRect = plotDiv.getBoundingClientRect();
+        
+        // Convert absolute screen coordinates to plot-relative coordinates
+        const relativeX = (pixelX - plotRect.left) / plotRect.width;
+        const relativeY = (pixelY - plotRect.top) / plotRect.height;
+        
+        // Account for plot margins
+        const margin = layout.margin || { l: 80, r: 80, t: 100, b: 80 };
+        const plotWidth = layout.width || plotDiv.offsetWidth;
+        const plotHeight = layout.height || plotDiv.offsetHeight;
+        
+        // Convert to plot area coordinates (excluding margins)
+        const plotAreaX = (relativeX * plotWidth - margin.l) / (plotWidth - margin.l - margin.r);
+        const plotAreaY = (relativeY * plotHeight - margin.t) / (plotHeight - margin.t - margin.b);
+        
+        // Flip Y coordinate for Plotly coordinate system
+        const plotAreaYFlipped = 1 - plotAreaY;
+        
+        // Check if coordinates are within plot area
+        if (plotAreaX < 0 || plotAreaX > 1 || plotAreaYFlipped < 0 || plotAreaYFlipped > 1) {
+            return null;
+        }
+        
+        // Check each subplot's domain
+        for (let i = 0; i < plotData.length; i++) {
+            const domain = getSubplotDomain(i);
+            
+            if (plotAreaX >= domain.x[0] && plotAreaX <= domain.x[1] &&
+                plotAreaYFlipped >= domain.y[0] && plotAreaYFlipped <= domain.y[1]) {
+                return i;
+            }
+        }
+        
+        return null;
+    }
+
+
+
+    // Add new function to create peak at any clicked location:
+    function addPeakAtLocation(plotIndex, frequency, power) {
+        const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+        
+        // Round frequency to avoid duplicates too close together
+        const roundedFreq = Math.round(frequency * 10) / 10;
+        
+        // Check if a peak already exists very close to this location
+        let tooClose = false;
+        selectedSet.forEach(existingFreq => {
+            if (Math.abs(existingFreq - roundedFreq) < 5) { // Within 5 Hz
+                tooClose = true;
+            }
+        });
+        
+        if (tooClose) {
+            updateStatusDisplay(`Peak too close to existing peak at ${roundedFreq.toFixed(1)} Hz`);
+            return;
+        }
+        
+        // Add the new peak
+        selectedSet.add(roundedFreq);
+        
+        // Add to graph
+        const graph = harmonicGraphs.get(plotIndex);
+        graph.nodes.add(roundedFreq);
+        
+        console.log(`Added custom peak at ${roundedFreq.toFixed(1)} Hz (Plot ${plotIndex + 1})`);
+        updateDataTable();
+    }
+
+    // Modify getCurrentPeakPowerForTable to handle custom peaks:
+    function getCurrentPeakPowerForTable(plotIndex, frequency) {
+        if (plotIndex >= plotData.length) return 0;
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const plot = plotData[plotIndex];
+        
+        // Try to get from main trace meta data
+        const mainTrace = plotDiv._fullData[plot.mainTraceIndex];
+        if (mainTrace && mainTrace.meta) {
+            const frequencies = mainTrace.x;
+            const currentPSD = currentScale === 'db' ? mainTrace.meta.db_psd : mainTrace.meta.linear_psd;
+            
+            // Find closest frequency in the actual data
+            let minDist = Infinity;
+            let closestPower = 0;
+            for (let i = 0; i < frequencies.length; i++) {
+                const dist = Math.abs(frequencies[i] - frequency);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestPower = currentPSD[i];
+                }
+            }
+            return closestPower;
+        }
+        
+        // Fallback: interpolate from original data
+        const frequencies = plot.frequencies;
+        const powers = currentScale === 'db' ? plot.psd_db : 
+                    (plot.psd_linear || plot.frequencies.map((_, i) => Math.pow(10, plot.psd_db[i]/10)));
+        
+        // Find closest points for interpolation
+        let leftIdx = 0, rightIdx = frequencies.length - 1;
+        for (let i = 0; i < frequencies.length - 1; i++) {
+            if (frequencies[i] <= frequency && frequencies[i+1] >= frequency) {
+                leftIdx = i;
+                rightIdx = i + 1;
+                break;
+            }
+        }
+        
+        // Linear interpolation
+        if (leftIdx !== rightIdx) {
+            const t = (frequency - frequencies[leftIdx]) / (frequencies[rightIdx] - frequencies[leftIdx]);
+            return powers[leftIdx] + t * (powers[rightIdx] - powers[leftIdx]);
+        } else {
+            return powers[leftIdx];
+        }
+    }
+
+
+
+
+
+    function handleRightClick(event) {
+        event.preventDefault();
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const rect = plotDiv.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        // Convert pixel coordinates to data coordinates (simplified)
+        const plotIndex = activeSubplotIndex;
+        
+        const currentTime = Date.now();
+        const timeDiff = currentTime - interactionState.lastClickTime;
+        const isDoubleClick = timeDiff < 400 && interactionState.lastClickButton === 3;
+        const isTripleClick = timeDiff < 400 && (currentTime - interactionState.doubleClickTime) < 600;
+        
+        if (isDoubleClick && !isTripleClick) {
+            interactionState.doubleClickTime = currentTime;
+        }
+        
+        interactionState.lastClickTime = currentTime;
+        interactionState.lastClickButton = 3;
+        
+        if (isTripleClick) {
+            // Triple right-click: remove all pairs
+            clearSelectionsForPlot(plotIndex);
+            updateStatusDisplay(`Triple-click: Cleared all selections for plot ${plotIndex + 1}`);
+        } else if (isDoubleClick) {
+            // Double right-click: remove pair at location
+            removePairAtLocation(plotIndex, x, y);
+            updateStatusDisplay(`Removed pair near click location`);
+        } else {
+            // Single right-click: create pair
+            createPairFromSelected(plotIndex);
+        }
+        
+        updateDisplay(plotIndex);
+        return false;
+    }
+
+
+
+    // function handleRightClick(event) {
+    //     event.preventDefault();
+        
+    //     const plotIndex = getSubplotFromPixelCoordinates(event.clientX, event.clientY);
+        
+    //     if (plotIndex === null) {
+    //         updateStatusDisplay('Right-click must be within a subplot area');
+    //         return false;
+    //     }
+        
+    //     const currentTime = Date.now();
+    //     const timeDiff = currentTime - interactionState.lastClickTime;
+    //     const isDoubleClick = timeDiff < 400 && interactionState.lastClickButton === 3;
+        
+    //     // Check triple-click BEFORE updating doubleClickTime
+    //     const isTripleClick = isDoubleClick && (currentTime - interactionState.doubleClickTime) < 600;
+        
+    //     // Update timing state
+    //     if (isDoubleClick && !isTripleClick) {
+    //         interactionState.doubleClickTime = currentTime;
+    //     }
+    //     interactionState.lastClickTime = currentTime;
+    //     interactionState.lastClickButton = 3;
+        
+    //     if (isTripleClick) {
+    //         clearSelectionsForPlot(plotIndex);
+    //         updateStatusDisplay(`Triple right-click: Cleared all selections for plot ${plotIndex + 1}`);
+    //     } else if (isDoubleClick) {
+    //         removePairAtLocation(plotIndex, 0, 0);
+    //         updateStatusDisplay(`Double right-click: Removed pair from plot ${plotIndex + 1}`);
+    //     } else {
+    //         createPairFromSelected(plotIndex);
+    //     }
+        
+    //     updateDisplay(plotIndex);
+    //     return false;
+    // }
+
+
+    function handleKeyPress(event) {
+        const key = event.key.toLowerCase();
+        
+        switch(key) {
+            case 'l':
+                removeAllConnectingLines();
+                break;
+            case 'c':
+                clearActiveSelections(); // Clear only active subplot
+                break;
+            case 'r':
+                resetAllData(); // Reset peaks and pairs for entire plot
+                break;
+            case 'a':
+                connectAllPeaks();
+                break;
+            case 'm':
+                showMatrixAnalysis();
+                break;
+            case '1':
+                selectHighestPeakForAllSubplots();
+                break;
+            case '2':
+                selectSecondHighestPeakForAllSubplots();
+                break;
+            case '3':
+                selectThirdHighestPeakForAllSubplots();
+                break;
+        }
+    }
+
+    function selectHighestPeakForAllSubplots() {
+        let totalSelected = 0;
+        
+        plotData.forEach((plot, plotIndex) => {
+            // Use the grey dot peaks that were detected by Python
+            const detectedPeaks = plot.peak_freqs || [];
+            const detectedPowers = plot.peak_powers || [];
+            
+            if (detectedPeaks.length >= 1) {
+                // Create array of peak-power pairs and sort by power descending
+                const peakPowerPairs = detectedPeaks.map((freq, i) => ({
+                    frequency: freq,
+                    power: detectedPowers[i] || 0
+                })).sort((a, b) => b.power - a.power);
+                
+                // Get highest peak (index 0)
+                const highestFreq = peakPowerPairs[0].frequency;
+                
+                // Add this peak if not already selected
+                const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+                if (!selectedSet.has(highestFreq)) {
+                    selectedSet.add(highestFreq);
+                    const graph = harmonicGraphs.get(plotIndex);
+                    graph.nodes.add(highestFreq);
+                    totalSelected++;
+                }
+            }
+            
+            updateDisplay(plotIndex);
+        });
+        
+        updateStatusDisplay(`Auto-selected ${totalSelected} highest detected peaks across all subplots`);
+        updateDataTable();
+    }
+
+    function selectSecondHighestPeakForAllSubplots() {
+        let totalSelected = 0;
+        
+        plotData.forEach((plot, plotIndex) => {
+            // Use the grey dot peaks that were detected by Python
+            const detectedPeaks = plot.peak_freqs || [];
+            const detectedPowers = plot.peak_powers || [];
+            
+            if (detectedPeaks.length >= 2) {
+                // Create array of peak-power pairs and sort by power descending
+                const peakPowerPairs = detectedPeaks.map((freq, i) => ({
+                    frequency: freq,
+                    power: detectedPowers[i] || 0
+                })).sort((a, b) => b.power - a.power);
+                
+                // Get second highest peak (index 1)
+                const secondHighestFreq = peakPowerPairs[1].frequency;
+                
+                // Add this peak if not already selected
+                const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+                if (!selectedSet.has(secondHighestFreq)) {
+                    selectedSet.add(secondHighestFreq);
+                    const graph = harmonicGraphs.get(plotIndex);
+                    graph.nodes.add(secondHighestFreq);
+                    totalSelected++;
+                }
+            }
+            
+            updateDisplay(plotIndex);
+        });
+        
+        updateStatusDisplay(`Auto-selected ${totalSelected} second highest detected peaks across all subplots`);
+        updateDataTable();
+    }
+
+    function selectThirdHighestPeakForAllSubplots() {
+        let totalSelected = 0;
+        
+        plotData.forEach((plot, plotIndex) => {
+            // Use the grey dot peaks that were detected by Python
+            const detectedPeaks = plot.peak_freqs || [];
+            const detectedPowers = plot.peak_powers || [];
+            
+            if (detectedPeaks.length >= 3) {
+                // Create array of peak-power pairs and sort by power descending
+                const peakPowerPairs = detectedPeaks.map((freq, i) => ({
+                    frequency: freq,
+                    power: detectedPowers[i] || 0
+                })).sort((a, b) => b.power - a.power);
+                
+                // Get third highest peak (index 2)
+                const thirdHighestFreq = peakPowerPairs[2].frequency;
+                
+                // Add this peak if not already selected
+                const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+                if (!selectedSet.has(thirdHighestFreq)) {
+                    selectedSet.add(thirdHighestFreq);
+                    const graph = harmonicGraphs.get(plotIndex);
+                    graph.nodes.add(thirdHighestFreq);
+                    totalSelected++;
+                }
+            }
+            
+            updateDisplay(plotIndex);
+        });
+        
+        updateStatusDisplay(`Auto-selected ${totalSelected} third highest detected peaks across all subplots`);
+        updateDataTable();
+    }
+
+    function removeAllConnectingLines() {
+        let totalPairsRemoved = 0;
+        
+        plotData.forEach((plot, plotIndex) => {
+            const pairs = interactionState.pairs.get(plotIndex);
+            const graph = harmonicGraphs.get(plotIndex);
+            
+            totalPairsRemoved += pairs.length;
+            
+            // Clear all pairs but keep selected peaks
+            pairs.length = 0;
+            graph.edges.clear();
+            
+            // Update display to remove connecting lines
+            updateDisplay(plotIndex);
+        });
+        
+        updateStatusDisplay(`Removed ${totalPairsRemoved} connecting lines (kept selected peaks)`);
+        updatePairLegend();
+        updateDataTable();
+    }
+
+
+
+    function getPlotIndexFromPoint(point) {
+        const xaxis = point.fullData.xaxis || 'x';
+        const yaxis = point.fullData.yaxis || 'y';
+        
+        for (let i = 0; i < plotData.length; i++) {
+            if (plotData[i].xaxis === xaxis && plotData[i].yaxis === yaxis) {
+                return i;
+            }
+        }
+        
+        return 0; // Default to first plot
+    }
+
+
+
+    function findNearestPeak(plotIndex, clickX) {
+        if (plotIndex >= plotData.length) return null;
+        
+        // Check BOTH original peaks AND selected peaks
+        const plot = plotData[plotIndex];
+        const originalPeaks = plot.peak_freqs || [];
+        const selectedPeaks = Array.from(interactionState.selectedPeaks.get(plotIndex) || []);
+        
+        // Combine both sets of peaks
+        const allPeaks = [...originalPeaks, ...selectedPeaks];
+        
+        let minDist = Infinity;
+        let nearestPeak = null;
+        
+        for (let i = 0; i < allPeaks.length; i++) {
+            const dist = Math.abs(allPeaks[i] - clickX);
+            if (dist < minDist && dist < interactionState.clickTolerance) {
+                minDist = dist;
+                nearestPeak = allPeaks[i];
+            }
+        }
+        
+        return nearestPeak;
+    }
+
+
+    function selectPeak(plotIndex, frequency) {
+        const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+        selectedSet.add(frequency);
+        
+        // Add to graph
+        const graph = harmonicGraphs.get(plotIndex);
+        graph.nodes.add(frequency);
+        
+        console.log(`Selected peak at ${frequency.toFixed(1)} Hz (Plot ${plotIndex + 1})`);
+        updateDataTable();
+    }
+
+    function removePeak(plotIndex, frequency) {
+        const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+        console.log(`Trying to remove peak ${frequency}, selected peaks:`, Array.from(selectedSet));
+        console.log(`Peak exists in set:`, selectedSet.has(frequency));
+        selectedSet.delete(frequency);
+        
+        // Remove from pairs containing this frequency
+        const pairs = interactionState.pairs.get(plotIndex);
+        const filteredPairs = pairs.filter(pair => 
+            Math.abs(pair.f0 - frequency) > 1 && Math.abs(pair.f1 - frequency) > 1
+        );
+        interactionState.pairs.set(plotIndex, filteredPairs);
+        
+        // Remove from graph
+        const graph = harmonicGraphs.get(plotIndex);
+        graph.nodes.delete(frequency);
+        
+        // Remove edges containing this node
+        const edgesToRemove = [];
+        graph.edges.forEach(edge => {
+            if (Math.abs(edge.f0 - frequency) < 1 || Math.abs(edge.f1 - frequency) < 1) {
+                edgesToRemove.push(edge);
+            }
+        });
+        edgesToRemove.forEach(edge => graph.edges.delete(edge));
+        
+        console.log(`Removed peak at ${frequency.toFixed(1)} Hz (Plot ${plotIndex + 1})`);
+        updateDataTable();
+    }
+
+    function createPairFromSelected(plotIndex) {
+        const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+        const selectedArray = Array.from(selectedSet);
+        
+        if (selectedArray.length < 2) {
+            updateStatusDisplay('Need at least 2 selected peaks to create a pair');
+            return;
+        }
+        
+        const pairs = interactionState.pairs.get(plotIndex);
+        if (pairs.length >= interactionState.maxPairs) {
+            updateStatusDisplay(`Maximum of ${interactionState.maxPairs} pairs reached`);
+            return;
+        }
+        
+        // Use last 2 selected peaks
+        const f1 = selectedArray[selectedArray.length - 2];
+        const f2 = selectedArray[selectedArray.length - 1];
+        const f0 = Math.min(f1, f2);
+        const f1_sorted = Math.max(f1, f2);
+        
+        const color = interactionState.colors[pairs.length % interactionState.colors.length];
+        const ratio = f1_sorted / f0;
+        
+        const newPair = {
+            f0: f0,
+            f1: f1_sorted,
+            color: color,
+            ratio: ratio
+        };
+        
+        pairs.push(newPair);
+        
+        // Add edge to graph
+        const graph = harmonicGraphs.get(plotIndex);
+        graph.edges.add(newPair);
+        
+        updateStatusDisplay(`Created pair: ${f0.toFixed(1)} Hz ↔ ${f1_sorted.toFixed(1)} Hz (ratio: ${ratio.toFixed(3)})`);
+        updatePairLegend();
+        updateDataTable();
+
+        console.log(`Created pair: ${f0.toFixed(1)} Hz ↔ ${f1_sorted.toFixed(1)} Hz, ratio: ${ratio.toFixed(3)}`);
+    }
+
+
+    function resetAllData() {
+        interactionState.selectedPeaks.forEach(selectedSet => selectedSet.clear());
+        interactionState.pairs.forEach(pairArray => pairArray.length = 0);
+        harmonicGraphs.forEach(graph => {
+            graph.nodes.clear();
+            graph.edges.clear();
+        });
+        
+        plotData.forEach((plot, index) => updateDisplay(index));
+        updateStatusDisplay('Reset all data (peaks and pairs)');
+        updatePairLegend();
+        updateDataTable();
+    }
+
+    
+    function setActiveSubplot(plotIndex) {
+        activeSubplotIndex = plotIndex;
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        if (plotDiv && plotDiv._fullLayout) {
+            // Create overlay element if it doesn't exist
+            if (!plotDiv._overlayElement) {
+                plotDiv._overlayElement = document.createElement('div');
+                plotDiv._overlayElement.className = 'subplot-overlay';
+                plotDiv._overlayElement.style.position = 'absolute';
+                plotDiv.style.position = 'relative';
+                plotDiv.appendChild(plotDiv._overlayElement);
+            }
+            
+            // Calculate margin cache if it doesn't exist
+            if (!plotDiv._marginCache) {
+                const layout = plotDiv._fullLayout;
+                const margin = layout.margin || { l: 80, r: 80, t: 100, b: 80 };
+                const plotWidth = layout.width || plotDiv.offsetWidth;
+                const plotHeight = layout.height || plotDiv.offsetHeight;
+                
+                plotDiv._marginCache = {
+                    leftPct: (margin.l / plotWidth) * 100,
+                    topPct: (margin.t / plotHeight) * 100,
+                    widthPct: ((plotWidth - margin.l - margin.r) / plotWidth) * 100,
+                    heightPct: ((plotHeight - margin.t - margin.b) / plotHeight) * 100
+                };
+            }
+            
+            // Position the overlay for the active subplot
+            const overlay = plotDiv._overlayElement;
+            const domain = getSubplotDomain(plotIndex);
+            const cache = plotDiv._marginCache;
+            
+            overlay.style.left = `${cache.leftPct + (domain.x[0] * cache.widthPct)}%`;
+            overlay.style.top = `${cache.topPct + ((1 - domain.y[1]) * cache.heightPct)}%`;
+            overlay.style.width = `${(domain.x[1] - domain.x[0]) * cache.widthPct}%`;
+            overlay.style.height = `${(domain.y[1] - domain.y[0]) * cache.heightPct}%`;
+            
+            // Make sure overlay is visible
+            overlay.style.display = 'block';
+        }
+        
+        updateStatusDisplay(`Active subplot: ${plotIndex + 1}`);
+    }
+
+
+    
+    function clearActiveSelections() {
+        // Clear only the active subplot
+        const selectedSet = interactionState.selectedPeaks.get(activeSubplotIndex);
+        const pairs = interactionState.pairs.get(activeSubplotIndex);
+        
+        selectedSet.clear();
+        pairs.length = 0; // Also clear pairs for active plot
+        
+        // Clear graph data
+        const graph = harmonicGraphs.get(activeSubplotIndex);
+        graph.nodes.clear();
+        graph.edges.clear();
+        
+        updateDisplay(activeSubplotIndex);
+        updateStatusDisplay(`Cleared selections for subplot ${activeSubplotIndex + 1}`);
+        updateDataTable();
+        updatePairLegend();
+    }
+
+    function connectAllPeaks() {
+        plotData.forEach((plot, plotIndex) => {
+            const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+            const graph = harmonicGraphs.get(plotIndex);
+            
+            // Get all nodes (selected + existing pairs)
+            const allNodes = new Set([...selectedSet]);
+            const pairs = interactionState.pairs.get(plotIndex);
+            pairs.forEach(pair => {
+                allNodes.add(pair.f0);
+                allNodes.add(pair.f1);
+            });
+            
+            const nodeArray = Array.from(allNodes).sort((a, b) => a - b);
+            
+            if (nodeArray.length < 2) return;
+            
+            // Create fully connected graph
+            let edgesAdded = 0;
+            for (let i = 0; i < nodeArray.length && pairs.length < interactionState.maxPairs; i++) {
+                for (let j = i + 1; j < nodeArray.length && pairs.length < interactionState.maxPairs; j++) {
+                    const f0 = nodeArray[i];
+                    const f1 = nodeArray[j];
+                    
+                    // Check if edge already exists
+                    const exists = pairs.some(pair => 
+                        (Math.abs(pair.f0 - f0) < 1 && Math.abs(pair.f1 - f1) < 1) ||
+                        (Math.abs(pair.f0 - f1) < 1 && Math.abs(pair.f1 - f0) < 1)
+                    );
+                    
+                    if (!exists) {
+                        const color = interactionState.colors[pairs.length % interactionState.colors.length];
+                        const ratio = f1 / f0;
+                        
+                        const newPair = {
+                            f0: f0,
+                            f1: f1,
+                            color: color,
+                            ratio: ratio
+                        };
+                        
+                        pairs.push(newPair);
+                        graph.edges.add(newPair);
+                        edgesAdded++;
+                    }
+                }
+            }
+            
+            updateDisplay(plotIndex);
+            updateStatusDisplay(`Auto-connected: Added ${edgesAdded} new pairs (Plot ${plotIndex + 1})`);
+        });
+        
+        updatePairLegend();
+        updateDataTable();
+    }
+
+    function removeAllPairsForPlot(plotIndex) {
+        const pairs = interactionState.pairs.get(plotIndex);
+        const graph = harmonicGraphs.get(plotIndex);
+        
+        pairs.length = 0;
+        graph.edges.clear();
+        
+        updatePairLegend();
+    }
+
+    function removePairAtLocation(plotIndex, x, y) {
+        // Simplified: remove the last pair for this plot
+        const pairs = interactionState.pairs.get(plotIndex);
+        if (pairs.length > 0) {
+            const removedPair = pairs.pop();
+            
+            const graph = harmonicGraphs.get(plotIndex);
+            graph.edges.delete(removedPair);
+            
+            updatePairLegend();
+        }
+    }
+
+    function updateDisplay(plotIndex) {
+        console.log(`[${Date.now()}] updateDisplay START for plot ${plotIndex}`);
+
+        if (plotIndex >= plotData.length) return;
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const plot = plotData[plotIndex];
+        const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+        const pairs = interactionState.pairs.get(plotIndex);
+    
+        console.log(`[${Date.now()}] Selected peaks:`, Array.from(selectedSet));
+        console.log(`[${Date.now()}] Pairs:`, pairs.length);        
+        
+        // Remove old interactive traces
+        const tracesToRemove = [];
+        plotDiv._fullData.forEach((trace, index) => {
+            if (trace.name && (
+                trace.name.includes(`selected_${plotIndex}`) ||
+                trace.name.includes(`pair_${plotIndex}`) ||
+                trace.name.includes(`vline_${plotIndex}`)
+            )) {
+                tracesToRemove.push(index);
+            }
+        });
+
+        console.log(`[${Date.now()}] Removing ${tracesToRemove.length} old traces`);
+
+        if (tracesToRemove.length > 0) {
+            Plotly.deleteTraces(plotDiv, tracesToRemove);
+        }
+        
+        // Prepare new traces to add
+        const tracesToAdd = [];
+        const axisRef = getAxisReference(plotIndex);
+        
+        // FIXED: Get current scale data for peak power calculation
+        function getCurrentPeakPower(frequency) {
+            // Find the main trace for this plot to get current scale data
+            const mainTrace = plotDiv._fullData[plot.mainTraceIndex];
+            if (!mainTrace || !mainTrace.meta) {
+                // Fallback: find peak in original data
+                const idx = plot.peak_freqs.findIndex(f => Math.abs(f - frequency) < 1);
+                return idx >= 0 ? plot.peak_powers[idx] : 0;
+            }
+            
+            // Get data for current scale
+            const frequencies = mainTrace.x;
+            const currentPSD = currentScale === 'db' ? mainTrace.meta.db_psd : mainTrace.meta.linear_psd;
+            
+            // Find closest frequency and return corresponding power
+            let minDist = Infinity;
+            let closestPower = 0;
+            for (let i = 0; i < frequencies.length; i++) {
+                const dist = Math.abs(frequencies[i] - frequency);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestPower = currentPSD[i];
+                }
+            }
+            return closestPower;
+        }
+        
+        // Add selected peaks with current scale powers
+        if (selectedSet.size > 0) {
+            const selectedFreqs = Array.from(selectedSet);
+            const selectedPowers = selectedFreqs.map(freq => getCurrentPeakPower(freq));
+            
+            tracesToAdd.push({
+                x: selectedFreqs,
+                y: selectedPowers,
+                mode: 'markers+text',
+                marker: {
+                    color: 'blue',
+                    size: 10,
+                    line: { color: 'black', width: 1 }
+                },
+                text: selectedFreqs.map(f => f.toFixed(0) + ' Hz'),
+                textposition: 'top center',
+                textfont: { color: 'blue', size: 10 },
+                name: `selected_${plotIndex}`,
+                showlegend: false,
+                xaxis: axisRef.x,
+                yaxis: axisRef.y
+            });
+        }
+        
+        // Add pairs with connecting lines and vertical lines
+        pairs.forEach((pair, pairIndex) => {
+            const f0Power = getCurrentPeakPower(pair.f0);
+            const f1Power = getCurrentPeakPower(pair.f1);
+            
+            // Connecting line with markers
+            tracesToAdd.push({
+                x: [pair.f0, pair.f1],
+                y: [f0Power, f1Power],
+                mode: 'lines+markers+text',
+                line: { color: pair.color, width: 2 },
+                marker: {
+                    color: 'blue',
+                    size: 10,
+                    line: { color: 'black', width: 1 }
+                },
+                text: [pair.f0.toFixed(0) + ' Hz', pair.f1.toFixed(0) + ' Hz'],
+                textposition: 'top center',
+                textfont: { color: 'blue', size: 10 },
+                name: `pair_${plotIndex}_${pairIndex}`,
+                showlegend: false,
+                xaxis: axisRef.x,
+                yaxis: axisRef.y
+            });
+            
+            // Vertical lines - get Y range from current main trace
+            const mainTrace = plotDiv._fullData[plot.mainTraceIndex];
+            const currentPSD = currentScale === 'db' ? 
+                (mainTrace.meta ? mainTrace.meta.db_psd : mainTrace.y) : 
+                (mainTrace.meta ? mainTrace.meta.linear_psd : mainTrace.y);
+            
+            const yMin = Math.min(...currentPSD);
+            const yMax = Math.max(...currentPSD);
+            
+            tracesToAdd.push({
+                x: [pair.f0, pair.f0, null, pair.f1, pair.f1, null],
+                y: [yMin, yMax, null, yMin, yMax, null],
+                mode: 'lines',
+                line: { color: pair.color, width: 1, dash: 'dash' },
+                opacity: 0.7,
+                name: `vline_${plotIndex}_${pairIndex}`,
+                showlegend: false,
+                xaxis: axisRef.x,
+                yaxis: axisRef.y
+            });
+        });
+        
+        // Add all traces at once
+        if (tracesToAdd.length > 0) {
+            Plotly.addTraces(plotDiv, tracesToAdd);
+        }
+        
+        // Update annotations for ratio display
+        updateRatioAnnotations(plotIndex);
+        
+        console.log(`[${Date.now()}] updateDisplay END for plot ${plotIndex}`);
+
+    }    
+
+    function getAxisReference(plotIndex) {
+        if (plotIndex === 0) {
+            return { x: 'x', y: 'y' };
+        } else {
+            return { x: `x${plotIndex + 1}`, y: `y${plotIndex + 1}` };
+        }
+    }
+
+    function updateRatioAnnotations(plotIndex) {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const pairs = interactionState.pairs.get(plotIndex);
+        
+        if (pairs.length === 0) return;
+        
+        // Get current layout
+        const layout = Object.assign({}, plotDiv._fullLayout);
+        
+        // Remove old annotations for this plot
+        if (layout.annotations) {
+            layout.annotations = layout.annotations.filter(ann => 
+                !(ann.plotIndex === plotIndex && ann.isRatio)
+            );
+        } else {
+            layout.annotations = [];
+        }
+        
+        // Create new ratio annotation
+        const ratioTexts = pairs.map(pair => 
+            `${pair.f0.toFixed(0)}→${pair.f1.toFixed(0)} (${pair.ratio.toFixed(2)})`
+        );
+        
+        const combinedText = ratioTexts.join('<br>');
+        
+        // Calculate position for this subplot
+        const domain = getSubplotDomain(plotIndex);
+        
+        layout.annotations.push({
+            x: domain.x[1] - 0.005,
+            y: domain.y[1] - 0.005,
+            text: combinedText,
+            showarrow: false,
+            bgcolor: 'rgba(255, 255, 255, 0.9)',
+            bordercolor: 'gray',
+            borderwidth: 1,
+            font: { size: 8, color: 'black' },
+            plotIndex: plotIndex,
+            isRatio: true,
+            xref: 'paper',
+            yref: 'paper',
+            xanchor: 'right',
+            yanchor: 'top',
+            align: 'right'
+        });
+        
+        // Update layout
+        Plotly.relayout(plotDiv, { annotations: layout.annotations });
+    }
+
+    function getSubplotDomain(plotIndex) {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const layout = plotDiv._fullLayout;
+        
+        // Default domains
+        let xDomain = [0, 1];
+        let yDomain = [0, 1];
+        
+        // Try to get actual domains from layout
+        const xAxisKey = plotIndex === 0 ? 'xaxis' : `xaxis${plotIndex + 1}`;
+        const yAxisKey = plotIndex === 0 ? 'yaxis' : `yaxis${plotIndex + 1}`;
+        
+        if (layout[xAxisKey] && layout[xAxisKey].domain) {
+            xDomain = layout[xAxisKey].domain;
+        }
+        if (layout[yAxisKey] && layout[yAxisKey].domain) {
+            yDomain = layout[yAxisKey].domain;
+        }
+        
+        return { x: xDomain, y: yDomain };
+    }
+
+    function updateStatusDisplay(message) {
+        const statusDiv = document.getElementById('statusDisplay');
+        if (statusDiv) {
+            const timestamp = new Date().toLocaleTimeString();
+            statusDiv.innerHTML = `[${timestamp}] ${message}<br>` + statusDiv.innerHTML;
+            
+            // Limit to last 10 messages
+            const lines = statusDiv.innerHTML.split('<br>');
+            if (lines.length > 10) {
+                statusDiv.innerHTML = lines.slice(0, 10).join('<br>');
+            }
+        }
+    }
+
+    function updatePairLegend() {
+        const pairsList = document.getElementById('pairsList');
+        if (!pairsList) return;
+        
+        let html = '';
+        let totalPairs = 0;
+        
+        interactionState.pairs.forEach((pairs, plotIndex) => {
+            if (pairs.length > 0) {
+                html += `<strong>Plot ${plotIndex + 1}:</strong><br>`;
+                pairs.forEach((pair, index) => {
+                    const ratio = pair.ratio.toFixed(2);
+                    html += `<div class="pair-item" style="background-color: ${pair.color}20; border-left: 3px solid ${pair.color};">`;
+                    html += `${pair.f0.toFixed(0)} ↔ ${pair.f1.toFixed(0)} Hz (${ratio})</div>`;
+                    totalPairs++;
+                });
+                html += '<br>';
+            }
+        });
+        
+        if (totalPairs === 0) {
+            html = 'No pairs created yet';
+        }
+        
+        pairsList.innerHTML = html;
+    }
+
+    function showMatrixAnalysis() {
+        let matrixHtml = '<h3>Harmonic Relationship Matrix</h3>';
+        
+        harmonicGraphs.forEach((graph, plotIndex) => {
+            const nodes = Array.from(graph.nodes).sort((a, b) => a - b);
+            const edges = Array.from(graph.edges);
+            
+            if (nodes.length === 0) {
+                matrixHtml += `<p><strong>Plot ${plotIndex + 1}:</strong> No data</p>`;
+                return;
+            }
+            
+            matrixHtml += `<h4>Plot ${plotIndex + 1} - ${plotData[plotIndex].filename}</h4>`;
+            matrixHtml += `<p>Nodes: ${nodes.map(n => n.toFixed(1)).join(', ')} Hz</p>`;
+            
+            // Create matrix
+            matrixHtml += '<table style="font-size: 10px; border-collapse: collapse;">';
+            matrixHtml += '<tr><th></th>' + nodes.map(n => `<th style="border: 1px solid #ccc; padding: 2px;">${n.toFixed(0)}</th>`).join('') + '</tr>';
+            
+            nodes.forEach(n1 => {
+                matrixHtml += `<tr><th style="border: 1px solid #ccc; padding: 2px;">${n1.toFixed(0)}</th>`;
+                nodes.forEach(n2 => {
+                    if (n1 === n2) {
+                        matrixHtml += '<td style="border: 1px solid #ccc; padding: 2px; background: #f0f0f0;">1.00</td>';
+                    } else {
+                        const edge = edges.find(e => 
+                            (Math.abs(e.f0 - Math.min(n1, n2)) < 1 && Math.abs(e.f1 - Math.max(n1, n2)) < 1)
+                        );
+                        if (edge) {
+                            const ratio = Math.max(n1, n2) / Math.min(n1, n2);
+                            matrixHtml += `<td style="border: 1px solid #ccc; padding: 2px; background: ${edge.color}40;">${ratio.toFixed(2)}</td>`;
+                        } else {
+                            matrixHtml += '<td style="border: 1px solid #ccc; padding: 2px;">-</td>';
+                        }
+                    }
+                });
+                matrixHtml += '</tr>';
+            });
+            matrixHtml += '</table><br>';
+            
+            // Edge list
+            if (edges.length > 0) {
+                matrixHtml += '<p><strong>Edges:</strong></p><ul>';
+                edges.forEach(edge => {
+                    matrixHtml += `<li>${edge.f0.toFixed(1)} Hz ↔ ${edge.f1.toFixed(1)} Hz (ratio: ${edge.ratio.toFixed(3)})</li>`;
+                });
+                matrixHtml += '</ul>';
+            }
+        });
+        
+        // Display in a popup or modal
+        const popup = window.open('', 'matrixAnalysis', 'width=800,height=600,scrollbars=yes');
+        popup.document.write(`
+            <html>
+                <head><title>Matrix Analysis</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    ${matrixHtml}
+                </body>
+            </html>
+        `);
+        
+        updateStatusDisplay('Matrix analysis opened in new window');
+    }
+
+    function exportData() {
+        const exportData = {
+            timestamp: new Date().toISOString(),
+            plots: []
+        };
+        
+        plotData.forEach((plot, plotIndex) => {
+            const selectedPeaks = Array.from(interactionState.selectedPeaks.get(plotIndex));
+            const pairs = interactionState.pairs.get(plotIndex);
+            const graph = harmonicGraphs.get(plotIndex);
+            
+            exportData.plots.push({
+                plotIndex: plotIndex,
+                filename: plot.filename,
+                selectedPeaks: selectedPeaks,
+                pairs: pairs.map(pair => ({
+                    f0: pair.f0,
+                    f1: pair.f1,
+                    ratio: pair.ratio,
+                    color: pair.color
+                })),
+                graph: {
+                    nodes: Array.from(graph.nodes),
+                    edges: Array.from(graph.edges)
+                }
+            });
+        });
+        
+        // Download as JSON
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `psd_analysis_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        updateStatusDisplay('Data exported successfully');
+    }
+
+    function toggleScaleMode() {
+        const checkbox = document.getElementById('scaleToggle');
+        const isLinear = checkbox.checked;
+        currentScale = isLinear ? 'linear' : 'db'; // Update global scale state
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        if (!plotDiv || !plotDiv._fullData) {
+            updateStatusDisplay('Plot not ready for scale toggle');
+            return;
+        }
+        
+        const updateData = [];
+        const updateIndices = [];
+        
+        // Update main and peak traces
+        plotDiv._fullData.forEach((trace, index) => {
+            if (trace.meta) {
+                const data = trace.meta;
+                if (data.scale_type === 'main_trace') {
+                    updateData.push({ y: isLinear ? data.linear_psd : data.db_psd });
+                    updateIndices.push(index);
+                } else if (data.scale_type === 'peak_trace') {
+                    updateData.push({ y: isLinear ? data.linear_powers : data.db_powers });
+                    updateIndices.push(index);
+                }
+            }
+        });
+
+        // Calculate new y-axis ranges for each subplot
+        const layoutUpdates = {};
+        const subplotData = new Map();
+
+        plotDiv._fullData.forEach((trace, index) => {
+            if (trace.meta && trace.meta.scale_type) {
+                const yAxisRef = trace.yaxis || 'y';
+                let newYData;
+                
+                if (trace.meta.scale_type === 'main_trace') {
+                    newYData = isLinear ? trace.meta.linear_psd : trace.meta.db_psd;
+                } else if (trace.meta.scale_type === 'peak_trace') {
+                    newYData = isLinear ? trace.meta.linear_powers : trace.meta.db_powers;
+                }
+                
+                if (newYData && newYData.length > 0) {
+                    if (!subplotData.has(yAxisRef)) {
+                        subplotData.set(yAxisRef, []);
+                    }
+                    subplotData.get(yAxisRef).push(...newYData);
+                }
+            }
+        });
+
+        // Calculate ranges for each subplot
+        subplotData.forEach((allYValues, yAxisRef) => {
+            if (allYValues.length > 0) {
+                const minY = Math.min(...allYValues);
+                const maxY = Math.max(...allYValues);
+                
+                let newRange;
+                if (isLinear) {
+                    const padding = (maxY - minY) * 0.1;
+                    newRange = [minY - padding, maxY + padding];
+                } else {
+                    newRange = [minY, maxY + 10];
+                }
+                
+                const yAxisKey = yAxisRef === 'y' ? 'yaxis' : yAxisRef.replace('y', 'yaxis');
+                layoutUpdates[`${yAxisKey}.range`] = newRange;
+            }
+        });
+
+        // Update y-axis labels
+        Object.keys(plotDiv._fullLayout).forEach(key => {
+            if (key.startsWith('yaxis') || key === 'yaxis') {
+                layoutUpdates[`${key}.title.text`] = isLinear ? 'PSD (linear)' : 'PSD (dB)';
+            }
+        });
+        
+        // Apply updates
+        if (updateData.length > 0) {
+            const restyleUpdate = {
+                y: updateData.map(item => item.y)
+            };
+            Plotly.restyle(plotDiv, restyleUpdate, updateIndices);
+        }
+        Plotly.relayout(plotDiv, layoutUpdates);
+
+        // CRITICAL: Update all interactive elements after scale change
+        plotData.forEach((plot, plotIndex) => {
+            updateDisplay(plotIndex);
+        });
+        
+        updateStatusDisplay(`Switched to ${isLinear ? 'linear' : 'dB'} scale`);
+        updateDataTable();
+    }
+
+// Add this function to dynamically resize the table with zoom
+function resizeDataTable() {
+    const plotDiv = document.getElementById('{{PLOT_ID}}');
+    const tableContainer = document.getElementById('dataTableContainer');
+    
+    if (plotDiv && tableContainer) {
+        const plotRect = plotDiv.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        
+        // Calculate available space to the right of the plot
+        const availableWidth = viewportWidth - plotRect.right - 30; // 30px for margins
+        
+        // Set table width to use most of the available space
+        const tableWidth = Math.max(250, Math.min(availableWidth * 0.9, 600)); // 90% of available, max 600px
+        
+        tableContainer.style.width = tableWidth + 'px';
+        tableContainer.style.left = (plotRect.right + 10) + 'px'; // Position just right of plot
+    }
+}
+
+
+function resizeControlPanel() {
+    const plotDiv = document.getElementById('{{PLOT_ID}}');
+    const controlPanel = document.querySelector('.control-panel');
+    
+    if (plotDiv && controlPanel) {
+        const plotRect = plotDiv.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        
+        // Calculate available space to the right of the plot
+        const availableWidth = viewportWidth - plotRect.right - 30; // 30px for margins
+        
+        // Set control panel width to use available space
+        const panelWidth = Math.max(150, Math.min(availableWidth * 0.9, 200)); // 90% of available, max 200px
+        
+        controlPanel.style.width = panelWidth + 'px';
+        controlPanel.style.left = (plotRect.right + 10) + 'px'; // Position just right of plot
+        controlPanel.style.top = (plotRect.top + 10) + 'px'; // Position at top of plot area
+    }
+}
+
+// Call on load and resize
+window.addEventListener('load', resizeDataTable);
+window.addEventListener('resize', resizeDataTable);
+
+// Also call when plot updates (zooming, etc.)
+document.getElementById('{{PLOT_ID}}').on('plotly_relayout', resizeDataTable);
+
+
+    // Live table update functions
+    function updateDataTable() {
+        const tableBody = document.getElementById('tableBody');
+        const tableHead = document.querySelector('#analysisTable thead tr');
+        if (!tableBody || !tableHead) return;
+        
+        // Find the maximum number of peaks across all plots
+        let maxPeaks = 0;
+        plotData.forEach((plot, plotIndex) => {
+            const selectedPeaks = interactionState.selectedPeaks.get(plotIndex);
+            const pairs = interactionState.pairs.get(plotIndex);
+            
+            // Count total unique peaks (selected + paired)
+            const allPeaks = new Set([...selectedPeaks]);
+            pairs.forEach(pair => {
+                allPeaks.add(pair.f0);
+                allPeaks.add(pair.f1);
+            });
+            
+            maxPeaks = Math.max(maxPeaks, allPeaks.size);
+        });
+        
+        // Build dynamic header
+        let headerHTML = '<th>Plot</th>';
+        
+        // Add peak frequency columns (p0, p1, p2, etc.)
+        for (let i = 0; i < maxPeaks; i++) {
+            headerHTML += `<th>p${i}</th>`;
+        }
+        
+        // Add PSD columns (psd0, psd1, psd2, etc.)
+        for (let i = 0; i < maxPeaks; i++) {
+            headerHTML += `<th>psd${i}</th>`;
+        }
+        
+        // Add ratio columns (p0p1, p0p2, p1p2, etc.)
+        for (let i = 0; i < maxPeaks; i++) {
+            for (let j = i + 1; j < maxPeaks; j++) {
+                headerHTML += `<th>p${i}p${j} ratio</th>`;
+            }
+        }
+        
+        tableHead.innerHTML = headerHTML;
+        
+        // Build data rows
+        let rows = [];
+        
+        plotData.forEach((plot, plotIndex) => {
+            const selectedPeaks = interactionState.selectedPeaks.get(plotIndex);
+            const pairs = interactionState.pairs.get(plotIndex);
+            const plotName = subplotTitles[plotIndex] || `Plot ${plotIndex + 1}`;
+            
+            // Collect all unique peaks for this plot
+            const allPeaks = new Set([...selectedPeaks]);
+            pairs.forEach(pair => {
+                allPeaks.add(pair.f0);
+                allPeaks.add(pair.f1);
+            });
+            
+            if (allPeaks.size === 0) return; // Skip plots with no data
+            
+            // Convert to sorted array
+            const peakArray = Array.from(allPeaks).sort((a, b) => a - b);
+            
+            // Start building row data
+            let rowData = {
+                plot: plotName,
+                peaks: new Array(maxPeaks).fill('-'),
+                psds: new Array(maxPeaks).fill('-'),
+                ratios: []
+            };
+            
+            // Fill in peak frequencies and PSDs
+            peakArray.forEach((peak, index) => {
+                if (index < maxPeaks) {
+                    rowData.peaks[index] = peak.toFixed(1);
+                    const power = getCurrentPeakPowerForTable(plotIndex, peak);
+                    rowData.psds[index] = formatPSDValue(power);
+                }
+            });
+            
+            // Calculate ratios
+            for (let i = 0; i < maxPeaks; i++) {
+                for (let j = i + 1; j < maxPeaks; j++) {
+                    if (i < peakArray.length && j < peakArray.length) {
+                        const ratio = peakArray[j] / peakArray[i];
+                        
+                        // Check if this is an actual pair (has a color)
+                        const pair = pairs.find(p => 
+                            (Math.abs(p.f0 - peakArray[i]) < 1 && Math.abs(p.f1 - peakArray[j]) < 1) ||
+                            (Math.abs(p.f0 - peakArray[j]) < 1 && Math.abs(p.f1 - peakArray[i]) < 1)
+                        );
+                        
+                        if (pair) {
+                            rowData.ratios.push(ratio.toFixed(3));
+                        } else {
+                            rowData.ratios.push(ratio.toFixed(3) + '*'); // Mark calculated ratios with *
+                        }
+                    } else {
+                        rowData.ratios.push('-');
+                    }
+                }
+            }
+            
+            rows.push(rowData);
+        });
+        
+        // Generate table HTML
+        if (rows.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="100%">No data selected</td></tr>';
+            return;
+        }
+        
+        tableBody.innerHTML = rows.map(row => {
+            let html = `<td>${row.plot}</td>`;
+            
+            // Add peak columns
+            row.peaks.forEach(peak => {
+                html += `<td>${peak}</td>`;
+            });
+            
+            // Add PSD columns
+            row.psds.forEach(psd => {
+                html += `<td>${psd}</td>`;
+            });
+            
+            // Add ratio columns
+            row.ratios.forEach(ratio => {
+                html += `<td>${ratio}</td>`;
+            });
+            
+            return `<tr>${html}</tr>`;
+        }).join('');
+    }
+    
+
+    function getCurrentPeakPowerForTable(plotIndex, frequency) {
+        if (plotIndex >= plotData.length) return 0;
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const plot = plotData[plotIndex];
+        
+        // Try to get from main trace meta data
+        const mainTrace = plotDiv._fullData[plot.mainTraceIndex];
+        if (mainTrace && mainTrace.meta) {
+            const frequencies = mainTrace.x;
+            const currentPSD = currentScale === 'db' ? mainTrace.meta.db_psd : mainTrace.meta.linear_psd;
+            
+            // Find closest frequency
+            let minDist = Infinity;
+            let closestPower = 0;
+            for (let i = 0; i < frequencies.length; i++) {
+                const dist = Math.abs(frequencies[i] - frequency);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestPower = currentPSD[i];
+                }
+            }
+            return closestPower;
+        }
+        
+        // Fallback to original data
+        const idx = plot.peak_freqs.findIndex(f => Math.abs(f - frequency) < 1);
+        return idx >= 0 ? plot.peak_powers[idx] : 0;
+    }
+
+    function formatPSDValue(value) {
+        if (currentScale === 'db') {
+            return value.toFixed(2) + ' dB';
+        } else {
+            return value.toExponential(2);
+        }
+    }
+
+    function exportToCSV() {
+        const table = document.getElementById('analysisTable');
+        if (!table) return;
+        
+        let csv = [];
+        const rows = table.querySelectorAll('tr');
+        
+        // Add header
+        const headerCells = rows[0].querySelectorAll('th');
+        const header = Array.from(headerCells).map(cell => `"${cell.textContent}"`).join(',');
+        csv.push(header);
+        
+        // Add data rows
+        for (let i = 1; i < rows.length; i++) {
+            const cells = rows[i].querySelectorAll('td');
+            if (cells.length > 0 && cells[0].textContent !== 'No data selected') {
+                const row = Array.from(cells).map(cell => {
+                    // Clean up the color column (remove HTML)
+                    let text = cell.textContent.trim();
+                    if (cell.querySelector('.color-indicator')) {
+                        // Extract just the color name after the indicator
+                        text = text.split(' ').slice(1).join(' ');
+                    }
+                    return `"${text}"`;
+                }).join(',');
+                csv.push(row);
+            }
+        }
+        
+        // Create and download file
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            link.setAttribute('download', `psd_analysis_${timestamp}.csv`);
+            
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            updateStatusDisplay('CSV file exported successfully');
+        }
+    }
+
+    function toggleTableVisibility() {
+        const tableWrapper = document.getElementById('tableWrapper');
+        const toggleBtn = document.getElementById('tableToggleBtn');
+        
+        if (!tableWrapper || !toggleBtn) return;
+        
+        if (tableWrapper.style.display === 'none') {
+            tableWrapper.style.display = 'block';
+            toggleBtn.textContent = 'Hide Table';
+        } else {
+            tableWrapper.style.display = 'none';
+            toggleBtn.textContent = 'Show Table';
+        }
+    }
+
+
+    // Custom drag handling for navigation - grab and drag like Google Maps
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            const plotDiv = document.getElementById('{{PLOT_ID}}');
+            if (!plotDiv) return;
+
+            let isDragging = false;
+            let startX, startY;
+            let originalRanges = {};
+            let dragStarted = false;
+
+            // Disable Plotly's default pan/zoom behaviors
+            plotDiv.addEventListener('plotly_afterplot', function() {
+                const plotlyPlot = plotDiv;
+                if (plotlyPlot._fullLayout) {
+                    // Keep zoom enabled but disable pan mode
+                    Plotly.relayout(plotlyPlot, {
+                        'dragmode': false  // Disable plotly's drag modes
+                    });
+                }
+            });
+
+            // Mouse events for Google Maps style drag behavior
+            plotDiv.addEventListener('mousedown', function(e) {
+                // Only handle left mouse button
+                if (e.button !== 0) return;
+                
+                // Don't interfere with plotly controls
+                if (e.target.closest('.modebar') || e.target.closest('.legend')) return;
+                
+                // Check if clicking near a peak
+                const rect = plotDiv.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const isNearPeak = checkIfNearPeak(x, y);
+                
+                if (isNearPeak) {
+                    // Let the click handler deal with peak selection
+                    return;
+                }
+                
+                // Start drag operation - capture initial state immediately
+                isDragging = true;
+                dragStarted = false;
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                // Capture the original axis ranges immediately when mouse down
+                originalRanges = captureAxisRanges();
+                
+                plotDiv.style.cursor = 'grabbing';
+                plotDiv.classList.add('dragging');
+                
+                // Prevent text selection and default behaviors
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Add temporary event listeners to document for smooth dragging
+                document.addEventListener('mousemove', handleDragMove);
+                document.addEventListener('mouseup', handleDragEnd);
+            });
+
+            function handleDragMove(e) {
+                if (!isDragging) return;
+
+                // Calculate total distance moved from original start point
+                const totalDeltaX = e.clientX - startX;
+                const totalDeltaY = e.clientY - startY;
+                
+                // Start dragging after any movement (like Google Maps)
+                if (!dragStarted && (Math.abs(totalDeltaX) > 1 || Math.abs(totalDeltaY) > 1)) {
+                    dragStarted = true;
+                }
+                
+                if (dragStarted) {
+                    // Perform the drag operation relative to original position
+                    panPlotRelative(totalDeltaX, totalDeltaY);
+                }
+                
+                e.preventDefault();
+            }
+
+            function handleDragEnd(e) {
+                if (isDragging) {
+                    isDragging = false;
+                    dragStarted = false;
+                    plotDiv.style.cursor = 'grab';
+                    plotDiv.classList.remove('dragging');
+                    
+                    // Remove temporary event listeners
+                    document.removeEventListener('mousemove', handleDragMove);
+                    document.removeEventListener('mouseup', handleDragEnd);
+                }
+            }
+
+            // Handle mouse leave
+            plotDiv.addEventListener('mouseleave', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    dragStarted = false;
+                    plotDiv.style.cursor = 'grab';
+                    plotDiv.classList.remove('dragging');
+                    
+                    // Remove temporary event listeners
+                    document.removeEventListener('mousemove', handleDragMove);
+                    document.removeEventListener('mouseup', handleDragEnd);
+                }
+            });
+
+            // Mouse move for cursor changes when not dragging
+            plotDiv.addEventListener('mousemove', function(e) {
+                if (isDragging) return;
+                
+                const rect = plotDiv.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (checkIfNearPeak(x, y)) {
+                    plotDiv.style.cursor = 'pointer';
+                } else {
+                    plotDiv.style.cursor = 'grab';
+                }
+            });
+
+            // Capture current axis ranges for all subplots
+            function captureAxisRanges() {
+                const ranges = {};
+                try {
+                    const layout = plotDiv._fullLayout;
+                    if (!layout) return {};
+
+                    Object.keys(layout).forEach(key => {
+                        if ((key.startsWith('xaxis') || key === 'xaxis') && layout[key] && layout[key].range) {
+                            ranges[key] = [...layout[key].range]; // Copy array
+                        } else if ((key.startsWith('yaxis') || key === 'yaxis') && layout[key] && layout[key].range) {
+                            ranges[key] = [...layout[key].range]; // Copy array
+                        }
+                    });
+                } catch (error) {
+                    console.log('Error capturing ranges:', error);
+                }
+                return ranges;
+            }
+
+            // Pan function that moves relative to original position (Google Maps style)
+            function panPlotRelative(totalDeltaX, totalDeltaY) {
+                try {
+                    const layout = plotDiv._fullLayout;
+                    if (!layout || !originalRanges) return;
+
+                    const updates = {};
+                    
+                    // Calculate new ranges based on original ranges and total movement
+                    Object.keys(originalRanges).forEach(key => {
+                        const originalRange = originalRanges[key];
+                        const axis = layout[key];
+                        
+                        if (key.startsWith('xaxis') || key === 'xaxis') {
+                            const rangeWidth = originalRange[1] - originalRange[0];
+                            const plotWidth = layout.width || 800;
+                            const shift = (totalDeltaX / plotWidth) * rangeWidth;
+                            
+                            updates[`${key}.range`] = [originalRange[0] - shift, originalRange[1] - shift];
+                        } else if (key.startsWith('yaxis') || key === 'yaxis') {
+                            const rangeHeight = originalRange[1] - originalRange[0];
+                            const plotHeight = layout.height || 600;
+                            const shift = (totalDeltaY / plotHeight) * rangeHeight;
+                            
+                            updates[`${key}.range`] = [originalRange[0] + shift, originalRange[1] + shift];
+                        }
+                    });
+
+                    // Apply the updates
+                    if (Object.keys(updates).length > 0) {
+                        Plotly.relayout(plotDiv, updates);
+                    }
+
+                } catch (error) {
+                    console.log('Error during pan:', error);
+                }
+            }
+
+            // Function to check if mouse is near a peak
+            function checkIfNearPeak(pixelX, pixelY) {
+                try {
+                    if (!plotDiv._fullData) return false;
+                    
+                    // Get plot area bounds
+                    const plotArea = plotDiv.querySelector('.plotly .main-svg');
+                    if (!plotArea) return false;
+                    
+                    const plotRect = plotArea.getBoundingClientRect();
+                    const containerRect = plotDiv.getBoundingClientRect();
+                    
+                    // Adjust coordinates to plot area
+                    const plotX = pixelX - (plotRect.left - containerRect.left);
+                    const plotY = pixelY - (plotRect.top - containerRect.top);
+                    
+                    // Check each trace for markers
+                    for (let trace of plotDiv._fullData) {
+                        if (trace.mode && trace.mode.includes('markers') && trace.x && trace.y) {
+                            for (let i = 0; i < trace.x.length; i++) {
+                                // Convert data coordinates to pixels
+                                const layout = plotDiv._fullLayout;
+                                const xaxis = layout[trace.xaxis] || layout.xaxis;
+                                const yaxis = layout[trace.yaxis] || layout.yaxis;
+                                
+                                if (xaxis && yaxis && xaxis._offset !== undefined && yaxis._offset !== undefined) {
+                                    const xPixel = xaxis._offset + (trace.x[i] - xaxis.range[0]) / (xaxis.range[1] - xaxis.range[0]) * xaxis._length;
+                                    const yPixel = yaxis._offset + yaxis._length - (trace.y[i] - yaxis.range[0]) / (yaxis.range[1] - yaxis.range[0]) * yaxis._length;
+                                    
+                                    // Check if mouse is within 15 pixels of this point
+                                    const distance = Math.sqrt(Math.pow(plotX - xPixel, 2) + Math.pow(plotY - yPixel, 2));
+                                    if (distance < 15) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    return false;
+                } catch (error) {
+                    return false;
+                }
+            }
+
+        }, 1000); // Wait for Plotly to initialize
+    });
+    
+    
+    </script>
+</body>
+</html>

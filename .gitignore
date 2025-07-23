@@ -1,0 +1,16 @@
+# Virtual environments
+venv/
+env/
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# App-specific
+temp_uploads/
+artifacts/
+*.log
+
+# Keep .python-version in version control!! Currently 3.12.10

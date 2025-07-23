@@ -1,0 +1,23 @@
+<!-- error.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Error - Jellyfish Dynamite</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .error { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🧨 Jellyfish Dynamite 🧨 - Error !!</h1>
+    <div class="error">
+        <h3>Something went wrong:</h3>
+        <p><strong>{{ error }}</strong></p>
+        {% if session_id %}
+        <p>Session ID: {{ session_id }}</p>
+        {% endif %}
+    </div>
+    <p><a href="/">← Try Again</a></p>
+</body>
+</html>

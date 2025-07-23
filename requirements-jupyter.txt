@@ -1,0 +1,7 @@
+# requirements-jupyter.txt
+
+-r requirements.txt
+
+ipympl==0.9.7
+ipython==8.12.3
+jupyter==1.0.0

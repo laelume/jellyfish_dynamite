@@ -1,0 +1,16 @@
+# requirements.txt
+
+# Python 3.9+ required, or errors may occur
+# Built on Python 3.12.10 - please use this version if you are able
+
+Flask==3.1.1
+Jinja2==3.1.6
+numpy==2.3.1
+scipy==1.16.0
+matplotlib==3.10.3
+librosa==0.11.0
+PyWavelets==1.7.0
+plotly==6.1.2
+bokeh==3.7.3
+networkx==3.5
+natsort==8.4.0
