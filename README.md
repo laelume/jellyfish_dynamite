@@ -67,6 +67,16 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
    http://localhost:5000
    ```
 
+6. **Analyze Audio**
+
+The `test_audio/` folder contains sample audio files to test the application. 
+
+- Click "Choose Files"
+- Navigate to the test_audio/ folder
+- Select one or more test files
+- Click "Analyze"
+
+
 ### Installation Options
 
 **Option 1: Flask Web App Standalone**
