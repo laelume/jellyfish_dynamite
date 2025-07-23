@@ -3,8 +3,8 @@ echo.
 echo 🎐 Jellyfish Dynamite - Audio Analysis Tool 🎐
 echo ================================================
 echo.
-echo Setting up your environment...
-echo This may take 2-3 minutes depending on your internet connection.
+echo Setting up environment...
+echo This may take 2-3 minutes depending on internet connection.
 echo.
 
 REM Check if Python is installed
@@ -62,7 +62,7 @@ echo.
 echo 🚀 Starting Jellyfish Dynamite...
 echo.
 echo When you see "Running on http://127.0.0.1:5000", 
-echo open your web browser and go to: http://localhost:5000
+echo open web browser and go to: http://localhost:5000
 echo.
 echo Press Ctrl+C to stop the server when you're done.
 echo.

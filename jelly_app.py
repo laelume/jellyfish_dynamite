@@ -18,7 +18,7 @@ if sys.version_info < (3, 9):
         print("   Install from: https://python.org")
         print("   Make sure to check 'Add Python to PATH'")
     else:  # Linux
-        print("   Install using your package manager or from python.org")
+        print("   Install using package manager or from python.org")
     sys.exit(1)
 
 print(f"✅ Running on Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")

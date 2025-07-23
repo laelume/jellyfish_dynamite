@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Diagnostic script for Jellyfish Dynamite Flask integration
-Analyzes your existing code and provides specific integration instructions
+Analyzes existing code and provides specific integration instructions
 """
 
 # diagnose.py
@@ -110,7 +110,7 @@ def generate_integration_code(analysis_file, main_function, save_function):
 # Replace the import section (around line 88) with:
 
 try:
-    # Import your analysis functions
+    # Import analysis functions
     from {analysis_file.replace('.py', '')} import {main_function}, {save_function}
     
     analysis_function = {main_function}
@@ -138,7 +138,7 @@ except ImportError as e:
 def process_files():
     # ... file upload code ...
     
-    # Call your analysis function
+    # Call analysis function
     fig, plots, _ = analysis_function(
         audio_directory=session_dir,
         max_pairs=10,
@@ -152,7 +152,7 @@ def process_files():
         use_db_scale=use_db_scale
     )
     
-    # Generate HTML using your save function
+    # Generate HTML using save function
     html_path, data_path, graph_path = save_function(
         plots, 
         base_filename=f"analysis_{{session_id}}",

@@ -27,6 +27,9 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/laelume/jellyfish_dynamite.git
+   ```
+
+   ```bash
    cd jellyfish_dynamite
    ```
    
@@ -37,11 +40,15 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
 2. **Create and activate virtual environment:**
    ```bash
    python -m venv venv
-   
+   ```
+
    # On Windows:
+   ```bash
    venv\Scripts\activate
-   
+   ```
+
    # On Mac/Linux:
+   ```bash
    source venv/bin/activate
    ```
 
@@ -55,7 +62,7 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
    python jelly_app.py
    ```
 
-5. **Open your browser** and go to:
+5. **Open browser** and go to:
    ```
    http://localhost:5000
    ```
@@ -78,8 +85,9 @@ pip install -r requirements-jupyter.txt
 **Use Case**: Quick install, batch processing, easy file upload
 ```bash
 python app.py
-# Go to http://localhost:5000
 ```
+# Go to http://localhost:5000
+
 - Web-based file upload interface
 - Parameter configuration through forms
 - Automatic HTML generation and browser opening
@@ -88,6 +96,8 @@ python app.py
 **Use Case**: Low-level parameter adjustment, interactive development, data exploration
 ```bash
 jupyter notebook
+```
+```bash
 # Import functions or use provided notebooks
 ```
 - Interactive matplotlib plots with full controls
@@ -98,6 +108,8 @@ jupyter notebook
 **Use Case**: Command-line use, automated processing, batch analysis
 ```bash
 python jellyfish_plotly_browser.py
+```
+```bash
 # Analyzes files in specified directory
 ```
 - Direct file processing from directories
@@ -160,7 +172,12 @@ python jellyfish_plotly_browser.py
 3. **Create virtual environment**:
    ```bash
    python -m venv venv
+   ```
+   
+   ```bash
    venv\Scripts\activate  # Windows
+   ```
+   ```bash
    source venv/bin/activate  # Mac/Linux
    ```
 
@@ -198,7 +215,7 @@ python jellyfish_plotly_browser.py
 
 3. **Submit Analysis**
    - Click "Analyze" to process files
-   - Results open automatically in your browser
+   - Results open automatically in browser
 
 ### Interactive Controls
 
@@ -254,7 +271,7 @@ The application generates several output files:
 
 ### Environment Variables (Optional)
 
-Set these in your environment or modify `config.py`:
+Set these in environment or modify `config.py`:
 
 ```bash
 export UPLOAD_FOLDER="uploads"
@@ -318,7 +335,7 @@ html_path, data_path, graph_path = save_jellyfish_plotly(
    - Install missing packages: `pip install -r requirements.txt`
 
 3. **"Python version too old" error**
-   - Your Python version is below 3.9
+   - Python version is below 3.9
    - Update Python from [python.org](https://python.org)
 
 4. **File upload fails**
@@ -330,7 +347,7 @@ html_path, data_path, graph_path = save_jellyfish_plotly(
    - Check console output for any error messages
 
 6. **Interactive features not working in HTML**
-   - Ensure JavaScript is enabled in your browser
+   - Ensure JavaScript is enabled in browser
    - Try refreshing the page
    - Check browser console (F12) for JavaScript errors
 

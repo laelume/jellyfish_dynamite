@@ -411,7 +411,7 @@ def save_jellyfish_template(fig, plots, base_filename="jelly_psd_template", outp
             </div>
         </div>
         <div class="mobile-note">
-            <p><strong>Note for mobile users:</strong> Use pinch gestures to zoom and drag with your finger to pan. Tap the menu icon to access tools.</p>
+            <p><strong>Note for mobile users:</strong> Use pinch gestures to zoom and drag with single finger to pan. Tap the menu icon to access tools.</p>
         </div>
     </div>
     
