@@ -1,3 +1,5 @@
+<small>
+
 # Jellyfish Dynamite - A Clear-Box Interactive PSD Analysis Tool
 
 A Flask web app for analyzing and comparing audio files using multiple spectral analysis methods and interactive visualization.
@@ -400,3 +402,5 @@ For issues and questions:
 3. Test with smaller audio files first
 4. Check browser console for JavaScript errors (F12)
 5. Message me!
+
+</small>
