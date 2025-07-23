@@ -23,7 +23,7 @@ def get_subdir_pathlist(some_directory):
 def make_daily_directory(base_dir=None, create=True, verbose=True):
     """
     Always returns the same daily directory for calls on the same day,
-    based on the 'code/artifacts' directory found upward from the current location - cwd.
+    CHANGED from 'code/artifacts' directory reliance!!
     """
     if base_dir is None:
         base_dir = find_artifacts_dir()
@@ -110,7 +110,7 @@ def find_artifacts_dir():
     # Detect Flask environment (check for Flask-specific files/directories)
     is_flask_env = (
         (current / 'temp_uploads').exists() or 
-        (current / 'simple_app.py').exists() or
+        (current / 'jelly_app.py').exists() or
         os.environ.get('FLASK_APP') is not None
     )
     
@@ -150,7 +150,14 @@ def find_artifacts_dir():
                 return artifacts_dir
                 #raise FileNotFoundError(f"'artifacts' directory does not exist in {parent}")
     
-    raise FileNotFoundError("Could not find 'code' directory in any parent path.")
+    # Fallback: create artifacts in current directory if no 'code' dir found
+    artifacts_dir = current / 'artifacts'
+    if not artifacts_dir.exists():
+        artifacts_dir.mkdir(exist_ok=True)
+        print(f"Created artifacts directory in current folder: {artifacts_dir}")
+    else:
+        print(f"Using existing artifacts directory: {artifacts_dir}")
+    return artifacts_dir
 
 
 
