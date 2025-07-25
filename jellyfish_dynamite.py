@@ -5,8 +5,12 @@ import os
 import numpy as np
 import webbrowser
 import jelly_funcs as jelfun
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+
+try:
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+except ImportError:
+    print("Plotly is required. Install with: pip install plotly")
 
 def save_jellyfish_template(fig, plots, base_filename="jelly_psd_template", output_directory=None):
     """Create interactive HTML using the sophisticated template."""
@@ -411,7 +415,7 @@ def save_jellyfish_template(fig, plots, base_filename="jelly_psd_template", outp
             </div>
         </div>
         <div class="mobile-note">
-            <p><strong>Note for mobile users:</strong> Use pinch gestures to zoom and drag with single finger to pan. Tap the menu icon to access tools.</p>
+            <p><strong>Note for mobile users:</strong> Use pinch gestures to zoom and drag with your finger to pan. Tap the menu icon to access tools.</p>
         </div>
     </div>
     

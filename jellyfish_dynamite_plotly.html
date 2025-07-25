@@ -6,27 +6,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta charset="utf-8" />
     <style>
+
         /* CSS Styling */
+        
         .js-plotly-plot .plotly .nsewdrag {
             cursor: grab !important;
         }
-
         .js-plotly-plot .plotly .nsewdrag.dragging {
             cursor: grabbing !important;
         }
-
         .js-plotly-plot .plotly .nsewdrag:active {
             cursor: grabbing !important;
         }
-
         .plotly-graph-div {
             cursor: auto;
         }
-
         .js-plotly-plot .plotly .cursor-pointer {
             cursor: pointer !important;
         }
-
         .js-plotly-plot .plotly .xtitle, .js-plotly-plot .plotly .ytitle {
             font-weight: bold !important;
         }
@@ -40,37 +37,33 @@
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+            font-size: 0.75em;
 
+        }
         .instructions h2 {
             color: #2c3e50;
             border-bottom: 1px solid #ddd;
             padding-bottom: 10px;
         }
-
         .instructions .controls {
             display: flex;
             gap: 5px;
             flex-wrap: nowrap;
         }
-
         .instructions .section {
             flex: 1; 
-            min-width: 22%;
+            min-width: 10%;
         }
-        
         .instructions h3 {
-            color: #3498db;
+            color: #2e6a67;
         }
-
         .instructions ul {
             list-style-type: none;
-            padding-left: 10px;
+            padding-left: 5px;
         }
-
         .instructions .highlight {
             font-weight: bold;
-            color: #e74c3c;
+            color: #6e3c00;
         }
 
         /* Active subplot overlay */
@@ -83,7 +76,8 @@
             background: rgba(172, 70, 222, 0.05);
             z-index: 999;
         }
-
+        
+        /* Control Panel (buttons??*/
         .control-panel {
             position: fixed;
             /* top: 10px; */
@@ -97,34 +91,30 @@
             z-index: 1000;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-
         .control-panel h4 {
             margin: 0 0 5px 0;
             color: #2c3e50;
             font-size: 12px;
         }
-
         .control-panel button {
             display: block;
             width: 100%;
             margin: 2px 0;
             padding: 4px;
-            background: #3498db;
+            background: #98d8c8;  /* Mint green background */
             color: rgb(116, 189, 129);
             border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            border-radius: 12px;
+            cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewport='0 0 100 100' style='fill:black;font-size:24px;'><text y='50%'>🐦</text></svg>") 16 0, auto;            
             font-size: 10px;
         }
-
         .control-panel button:hover {
             background: #2980b9;
+            background: #7bc4b0;  /* Darker mint green on hover */
         }
-
         .control-panel button.danger {
             background: #e74c3c;
         }
-
         .control-panel button.danger:hover {
             background: #c0392b;
         }
@@ -146,17 +136,16 @@
             border-radius: 3px;
         }
 
+
         /* Mobile-specific adjustments */
         @media (max-width: 768px) {
             .instructions {
                 margin: 10px;
                 padding: 10px;
             }
-
             .instructions .section {
                 min-width: 100%;
             }
-
             .control-panel {
                 position: relative;
                 margin: 10px;
@@ -164,21 +153,19 @@
                 top: auto !important;
                 width: auto !important;
             }
-
             .js-plotly-plot {
                 height: auto !important;
                 width: 100% !important;
             }
-
             .plotly .main-svg {
                 width: 100% !important;
             }
-
             .modebar-container {
                 transform: scale(0.8);
                 transform-origin: top right;
             }
         }
+
 
         /* Dark mode support */
         @media (prefers-color-scheme: dark) {
@@ -186,68 +173,56 @@
                 background-color: #121212 !important;
                 color: #e0e0e0 !important;
             }
-
             .instructions {
                 background-color: #424242 !important;
                 color: #e0e0e0 !important;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
             }
-
             .instructions h2 {
                 color: #e0e0e0 !important;
                 border-bottom: 1px solid #444 !important;
             }
-
             .instructions h3 {
                 color: #398c91 !important;
             }
-
             .instructions .highlight {
                 color: #e6875e !important;
             }
-
             .control-panel {
                 background: rgba(42, 42, 42, 0.95) !important;
                 border: 1px solid #555 !important;
                 color: #e0e0e0 !important;
             }
-
             .control-panel h4 {
                 color: #e0e0e0 !important;
             }
-
             .status-display {
                 background: #333 !important;
                 color: #e0e0e0 !important;
             }
-
+            
             .js-plotly-plot .plotly .hoverlayer .hover,
             .js-plotly-plot .plotly .annotation-text {
                 background-color: rgba(70, 70, 70, 0.9) !important;
                 color: #e0e0e0 !important;
                 border: 1px solid #555555 !important;
             }
-
             .js-plotly-plot .plotly .hoverlayer .hover text,
             .js-plotly-plot .plotly .annotation-text text {
                 fill: #e0e0e0 !important;
             }
-
             .js-plotly-plot .plotly .plot-container {
                 background-color: #222222 !important;
             }
-
             .js-plotly-plot .plotly .xaxis .xtick text,
             .js-plotly-plot .plotly .yaxis .ytick text,
             .js-plotly-plot .plotly .xtitle, 
             .js-plotly-plot .plotly .ytitle {
                 fill: #e0e0e0 !important;
             }
-
             .js-plotly-plot .plotly .gtitle {
                 fill: #ffffff !important;
             }
-
             .js-plotly-plot .plotly .gridlayer path {
                 stroke: rgba(150, 150, 150, 0.2) !important;
             }
@@ -255,10 +230,14 @@
             .modebar {
                 background-color: rgba(50, 50, 50, 0.7) !important;
             }
-
             .modebar-btn path {
                 fill: #e0e0e0 !important;
             }
+
+            .checkbox-item input[type="checkbox"] {
+                    accent-color: #5dade2 !important;
+                }
+
         }
 
         .js-plotly-plot text {
@@ -385,11 +364,9 @@
             .toggle-label {
                 color: #e0e0e0 !important;
             }
-            
             .slider {
                 border-color: #555 !important;
             }
-            
             .slider:before {
                 background: linear-gradient(135deg, #2a2a2a, #333333) !important;
                 border-color: #555 !important;
@@ -543,27 +520,121 @@
                 padding: 2px 4px;
             }
         }
+
+
+
+    /* Spectrogram control group styling */
+    .spectrogram-controls {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin: 8px 0;
+        padding: 8px;
+        background: rgba(240, 248, 255, 0.3);
+        border-radius: 6px;
+        border: 1px solid rgba(52, 152, 219, 0.2);
+    }
+
+    .spectrogram-controls .control-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .checkbox-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        accent-color: #3498db;
+    }
+
+    .checkbox-item label {
+        font-size: 9px;
+        color: #555;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .spectrogram-controls .toggle-label {
+        font-size: 10px;
+        color: #555;
+        margin-top: 4px;
+        font-weight: bold;
+    }
+
+    /* Dark mode spectrogram support */
+    @media (prefers-color-scheme: dark) {
+        .spectrogram-controls {
+            background: rgba(42, 42, 42, 0.3) !important;
+            border-color: rgba(52, 152, 219, 0.4) !important;
+        }
+        
+        .checkbox-item label,
+        .spectrogram-controls .toggle-label {
+            color: #e0e0e0 !important;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            accent-color: #5dade2 !important;
+        }
+    }
+
+    /* Mobile responsive spectrogram stuff*/
+    @media (max-width: 768px) {
+        .spectrogram-controls {
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .checkbox-group {
+            justify-content: center;
+        }
+    }
+
+    /*Adding spectros as simple wallpaper*/
+   .subplot-background {
+    position: absolute;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+    }
+
+    .spectrogram-controls {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
+    } 
+
+
     
     </style>
+
 </head>
 <body>
     <div class="instructions">
-        <h2>Jellyfish Dynamite (plotly): {{DIR_NAME}} - Dynamic Interactive PSD Analysis</h2>
+        <h2>Jellyfish Dynamite (plotly): {{DIR_NAME}} - Dynamic Interactive Spectral Analysis</h2>
         <div class="controls">
-
-            <div class="section">
-                <h3>Control Panel:</h3>
+            <!-- Toggle Switches -->
+             <div class="section">
+                <h3>View Options</h3>
                 <ul>
-                    <li><button onclick="selectHighestPeakForAllSubplots()">Select Highest PSD Values</button></li>
-                    <li><button onclick="selectSecondHighestPeakForAllSubplots()">Select 2nd Highest PSD Values</button></li>
-                    <li><button onclick="selectThirdHighestPeakForAllSubplots()">Select 3rd Highest PSD Values</button></li>
-                    <li><button onclick="removeAllConnectingLines()">Remove All Lines</button></li>
-                    <li><button onclick="resetAllData()" class="danger">Reset All Data</button></li>
-                    <li><button onclick="clearActiveSelections()">Clear Active Plot</button></li>
-                    <li><button onclick="connectAllPeaks()">Auto-Connect Everything</button></li>
-                    <li><button onclick="showMatrixAnalysis()">Matrix View</button></li>
-                    <li><button onclick="exportData()">Export JSON Data</button></li>
                     <li>
+                        <div class="toggle-label">dB to Linear Scale</div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="scaleToggle" onchange="toggleScaleMode()" {{'' if USE_DB_SCALE == 'true' else 'checked'}}>
                             <span class="slider">
@@ -571,82 +642,104 @@
                                 <span class="toggle-text right">Lin</span>
                             </span>
                         </label>
-                        <div class="toggle-label">Y-axis Scale</div>
+                    </li>
+
+                    <li>
+                        <div class="toggle-label">Spectrogram Visibility</div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="spectrogramToggle" onchange="toggleSpectrogramVisibility()" checked>
+                            <span class="slider">
+                                <span class="toggle-text left">Hide</span>
+                                <span class="toggle-text right">Show</span>
+                            </span>
+                        </label>
+
+                    </li>
+
+                    <li>
+                        <div class="toggle-label">Spectrogram View</div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="spectrogramViewToggle" onchange="toggleSpectrogramView()" checked>
+                            <span class="slider">
+                                <span class="toggle-text left">Full</span>
+                                <span class="toggle-text right">Top</span>
+                            </span>
+                        </label>
                     </li>
                 </ul>
-            </div>
+             </div>
+
+
+            <!-- Buttons -->
             <div class="section">
-                <h3>Peak Selection:</h3>
+                <h3>Control Panel</h3>
                 <ul>
-                    <li><span class="highlight">Left-click</span> on peaks to select them</li>
-                    <li><span class="highlight">Ctrl+click</span> to add/remove peak</li>
-                    <li><span class="highlight">Double-click</span> to remove selected peak</li>
-                    <li><span class="highlight">Triple-click</span> to clear all selections</li>
+                    <li><button onclick="selectHighestPeakForAllSubplots()">1st High Peaks</button></li>
+                    <li><button onclick="selectSecondHighestPeakForAllSubplots()">2nd High Peaks</button></li>
+                    <li><button onclick="selectThirdHighestPeakForAllSubplots()">3rd High Peaks</button></li>
+                    <li><button onclick="removeAllConnectingLines()">Remove All Lines</button></li>
+                    <li><button onclick="resetAllData()" class="danger">Reset All Data</button></li>
+                    <li><button onclick="clearActiveSelections()">Clear Active Plot</button></li>
+                    <li><button onclick="connectAllPeaks()">Connect All Selected Peaks</button></li>
+                    <li><button onclick="showMatrixAnalysis()">Matrix View</button></li>
+                    <li><button onclick="exportData()">Export JSON Data</button></li>
                 </ul>
             </div>
+
             <div class="section">
-                <h3>Harmonic Pair Creation:</h3>
+                <h3>Keyboard Shortcuts</h3>
+                <ul>
+                    <li><span class="highlight">1</span> - Select 1st high peak (all plots)</li>
+                    <li><span class="highlight">2</span> - Select 2nd high peak (all subplots)</li>
+                    <li><span class="highlight">3</span> - Select 3rd high peak (all subplots)</li>
+                    
+                    <li><span class="highlight">A</span> - Connect all selected peaks</li>
+                    <li><span class="highlight">M</span> - Show matrix analysis</li>
+
+                    <li><span class="highlight">C</span> - Clear active graph only</li>
+                    <li><span class="highlight">L</span> - Remove all connecting lines</li>
+                    <li><span class="highlight">R</span> - Remove all peaks and lines</li>
+                                        
+                    <li><span class="highlight">D</span> - Toggle dB ↔ Linear scale</li>
+                    <li><span class="highlight">S</span> - Toggle Spectrogram Visibility</li>
+                    <li><span class="highlight">V</span> - Toggle Spectrogram View</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h3>Peak Selection</h3>
+                <ul>
+                    <li><span class="highlight">Left-click</span> on peak to select</li>
+                    <li><span class="highlight">Ctrl+click</span> to remove peak</li>
+                    <li><span class="highlight">Double-click</span> to remove peak</li>
+                    <li><span class="highlight">Triple-click</span> to clear selections</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h3>Harmonic Pair Creation</h3>
                 <ul>
                     <li><span class="highlight">Right-click</span> to pair last 2 selected peaks</li>
                     <li><span class="highlight">Double right-click</span> to remove pair</li>
                     <li><span class="highlight">Triple right-click</span> to remove all pairs</li>
                 </ul>
             </div>
-            <div class="section">
-                <h3>Keyboard Shortcuts:</h3>
-                <ul>
-                    <li><span class="highlight">L</span> - Remove all connecting lines (keep peaks)</li>
-                    <li><span class="highlight">C</span> - Clear active / selected graph</li>
-                    <li><span class="highlight">R</span> - Reset everything</li>
-                    <li><span class="highlight">A</span> - Auto-connect all points</li>
-                    <li><span class="highlight">M</span> - Show matrix analysis</li>
-                    <li><span class="highlight">1</span> - Select highest PSD peak for all subplots</li>
-                    <li><span class="highlight">2</span> - Select 2nd highest PSD peak for all subplots</li>
-                    <li><span class="highlight">3</span> - Select 3rd highest PSD peak for all subplots</li>
-                    <li><span class="highlight">D</span> - Toggled dB ↔ Linear scale</li>
-                </ul>
-            </div>
+
 
         </div>
     </div>
 
-    <!-- Control Panel -->
+    <!-- Rolling Updates of Actions Performed -->
     <div class="control-panel">
         <h4>Action Log</h4>
-        <!-- <button onclick="clearAllSelections()">Clear Selections</button>
-        <button onclick="resetAllData()" class="danger">Reset All</button>
-        <button onclick="connectAllPeaks()">Auto-Connect</button>
-        <button onclick="showMatrixAnalysis()">Matrix View</button>
-        <button onclick="exportData()">Export Data</button> -->
-
-        <!-- Linear/dB Scale Toggle Switch -->
-        <!-- <div class="scale-toggle">
-            <label class="toggle-switch">
-                <input type="checkbox" id="scaleToggle" onchange="toggleScaleMode()" {{'' if USE_DB_SCALE == 'true' else 'checked'}}>
-                <span class="slider">
-                    <span class="toggle-text left">dB</span>
-                    <span class="toggle-text right">Lin</span>
-                </span>
-            </label>
-            <div class="toggle-label">Y-axis Scale</div>
-        </div> -->
-
         <div class="status-display" id="statusDisplay">
             Click on peaks to begin analysis...
         </div>
     </div>
 
-    
-    <!-- Peak Legend
-    <div class="peak-legend" id="peakLegend">
-        <h4>Harmonic Pairs</h4>
-        <div id="pairsList">No pairs created yet</div>
-    </div> -->
-
-    
-    <!-- Live Data Table -->
+    <!-- Peak Ratio Data Table -->
     <div class="data-table-container" id="dataTableContainer">
-        <h4>Live Analysis Data</h4>
+        <h4>Selected Peaks and Ratios</h4>
         <div class="table-controls">
             <button onclick="exportToCSV()" class="export-btn">📊 Export CSV</button>
             <button onclick="toggleTableVisibility()" class="toggle-btn" id="tableToggleBtn">Hide Table</button>
@@ -763,6 +856,14 @@
     let currentScale = {{USE_DB_SCALE}} === 'true' ? 'db' : 'linear';
 
     const subplotTitles = {{SUBPLOT_TITLES}};
+    
+    // Global state for initializing spectrogram view
+    let spectrogramViewState = {
+        isVisible: true,
+        viewMode: 'top-half' // 'top-half' or 'full'
+    };
+
+
 
     function initializeScaleToggle() {
         const checkbox = document.getElementById('scaleToggle');
@@ -774,6 +875,12 @@
         
         console.log(`Initialized scale toggle: ${currentScale} scale`);
     }
+
+    // Initialize backgrounds after plot loads
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(createSpectrogramBackgrounds, 1000);
+    });
+
 
     // Initialize after Plotly loads
     document.addEventListener('DOMContentLoaded', function() {
@@ -811,6 +918,10 @@
         
         // Set up event listeners
         setupEventListeners();
+
+        // Initialize spectrogram view state to match checkbox
+        const spectrogramViewCheckbox = document.getElementById('spectrogramViewToggle');
+        spectrogramViewState.viewMode = spectrogramViewCheckbox.checked ? 'top-half' : 'full';
         
         updateStatusDisplay('Interactive analysis ready. Click on peaks to select them.');
     }
@@ -1150,7 +1261,7 @@
         
         if (isTripleClick) {
             // Triple right-click: remove all pairs
-            clearSelectionsForPlot(plotIndex);
+            clearActiveSelections();
             updateStatusDisplay(`Triple-click: Cleared all selections for plot ${plotIndex + 1}`);
         } else if (isDoubleClick) {
             // Double right-click: remove pair at location
@@ -1164,47 +1275,6 @@
         updateDisplay(plotIndex);
         return false;
     }
-
-
-
-    // function handleRightClick(event) {
-    //     event.preventDefault();
-        
-    //     const plotIndex = getSubplotFromPixelCoordinates(event.clientX, event.clientY);
-        
-    //     if (plotIndex === null) {
-    //         updateStatusDisplay('Right-click must be within a subplot area');
-    //         return false;
-    //     }
-        
-    //     const currentTime = Date.now();
-    //     const timeDiff = currentTime - interactionState.lastClickTime;
-    //     const isDoubleClick = timeDiff < 400 && interactionState.lastClickButton === 3;
-        
-    //     // Check triple-click BEFORE updating doubleClickTime
-    //     const isTripleClick = isDoubleClick && (currentTime - interactionState.doubleClickTime) < 600;
-        
-    //     // Update timing state
-    //     if (isDoubleClick && !isTripleClick) {
-    //         interactionState.doubleClickTime = currentTime;
-    //     }
-    //     interactionState.lastClickTime = currentTime;
-    //     interactionState.lastClickButton = 3;
-        
-    //     if (isTripleClick) {
-    //         clearSelectionsForPlot(plotIndex);
-    //         updateStatusDisplay(`Triple right-click: Cleared all selections for plot ${plotIndex + 1}`);
-    //     } else if (isDoubleClick) {
-    //         removePairAtLocation(plotIndex, 0, 0);
-    //         updateStatusDisplay(`Double right-click: Removed pair from plot ${plotIndex + 1}`);
-    //     } else {
-    //         createPairFromSelected(plotIndex);
-    //     }
-        
-    //     updateDisplay(plotIndex);
-    //     return false;
-    // }
-
 
     function handleKeyPress(event) {
         const key = event.key.toLowerCase();
@@ -1225,6 +1295,10 @@
             case 'm':
                 showMatrixAnalysis();
                 break;
+            case 'd':
+                document.getElementById('scaleToggle').checked = !document.getElementById('scaleToggle').checked;
+                toggleScaleMode();
+                break;
             case '1':
                 selectHighestPeakForAllSubplots();
                 break;
@@ -1233,6 +1307,14 @@
                 break;
             case '3':
                 selectThirdHighestPeakForAllSubplots();
+                break;
+            case 's':
+                document.getElementById('spectrogramToggle').checked = !document.getElementById('spectrogramToggle').checked;
+                toggleSpectrogramVisibility();
+                break;
+            case 'v':
+                document.getElementById('spectrogramViewToggle').checked = !document.getElementById('spectrogramViewToggle').checked;
+                toggleSpectrogramView();
                 break;
         }
     }
@@ -2125,54 +2207,152 @@
         updateDataTable();
     }
 
-// Add this function to dynamically resize the table with zoom
-function resizeDataTable() {
-    const plotDiv = document.getElementById('{{PLOT_ID}}');
-    const tableContainer = document.getElementById('dataTableContainer');
-    
-    if (plotDiv && tableContainer) {
-        const plotRect = plotDiv.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
+
+    function toggleSpectrogramVisibility() {
+        const checkbox = document.getElementById('spectrogramToggle');
+        const showSpectrogram = checkbox.checked;
         
-        // Calculate available space to the right of the plot
-        const availableWidth = viewportWidth - plotRect.right - 30; // 30px for margins
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        if (!plotDiv || !plotDiv._fullData) {
+            updateStatusDisplay('Plot not ready for spectrogram toggle');
+            return;
+        }
         
-        // Set table width to use most of the available space
-        const tableWidth = Math.max(250, Math.min(availableWidth * 0.9, 600)); // 90% of available, max 600px
+        // Find spectrogram traces and toggle visibility
+        const updateIndices = [];
         
-        tableContainer.style.width = tableWidth + 'px';
-        tableContainer.style.left = (plotRect.right + 10) + 'px'; // Position just right of plot
+        plotDiv._fullData.forEach((trace, index) => {
+            if (trace.name && trace.name.includes('spectrogram_')) {
+                updateIndices.push(index);
+            }
+        });
+        
+        if (updateIndices.length > 0) {
+            Plotly.restyle(plotDiv, { visible: showSpectrogram }, updateIndices);
+            updateStatusDisplay(`Spectrogram ${showSpectrogram ? 'shown' : 'hidden'}`);
+        } else {
+            updateStatusDisplay('No spectrogram data available');
+        }
     }
-}
 
-
-function resizeControlPanel() {
-    const plotDiv = document.getElementById('{{PLOT_ID}}');
-    const controlPanel = document.querySelector('.control-panel');
-    
-    if (plotDiv && controlPanel) {
-        const plotRect = plotDiv.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
+    function toggleSpectrogramView() {
+        const checkbox = document.getElementById('spectrogramViewToggle');
+        const isTopHalf = checkbox.checked;
         
-        // Calculate available space to the right of the plot
-        const availableWidth = viewportWidth - plotRect.right - 30; // 30px for margins
+        spectrogramViewState.viewMode = isTopHalf ? 'top-half' : 'full';
+        applySpectrogramViewMode();
         
-        // Set control panel width to use available space
-        const panelWidth = Math.max(150, Math.min(availableWidth * 0.9, 200)); // 90% of available, max 200px
-        
-        controlPanel.style.width = panelWidth + 'px';
-        controlPanel.style.left = (plotRect.right + 10) + 'px'; // Position just right of plot
-        controlPanel.style.top = (plotRect.top + 10) + 'px'; // Position at top of plot area
+        updateStatusDisplay(`Spectrogram view: ${spectrogramViewState.viewMode}`);
     }
-}
 
-// Call on load and resize
-window.addEventListener('load', resizeDataTable);
-window.addEventListener('resize', resizeDataTable);
+        
+    function applySpectrogramViewMode() {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        if (!plotDiv || !plotDiv._fullData) {
+            console.log('Plot not ready for spectrogram view update');
+            return;
+        }
+        
+        // Find all spectrogram traces and update their Y positioning
+        const updateIndices = [];
+        const updateData = [];
+        
+        plotDiv._fullData.forEach((trace, index) => {
+            if (trace.name && trace.name.includes('spectrogram_')) {
+                // Keep the full spectrogram data
+                const originalZ = trace.z;
+                const originalTimes = trace.y;
+                
+                let newY;
+                
+                if (spectrogramViewState.viewMode === 'top-half') {
+                    // Compress the time axis to fit in top half of subplot
+                    const maxTime = Math.max(...originalTimes);
+                    const minTime = Math.min(...originalTimes);
+                    const timeRange = maxTime - minTime;
+                    
+                    // Scale times to occupy only top half (50%-100% of Y range)
+                    newY = originalTimes.map(time => {
+                        const normalizedTime = (time - minTime) / timeRange; // 0 to 1
+                        return minTime + (normalizedTime * 0.5 + 0.5) * timeRange; // Map to top half
+                    });
+                } else {
+                    // Show full spectrogram across entire Y range
+                    newY = originalTimes;
+                }
+                
+                updateIndices.push(index);
+                updateData.push({
+                    y: newY
+                });
+            }
+        });
+        
+        // Apply updates if we found spectrogram traces
+        if (updateIndices.length > 0) {
+            try {
+                updateIndices.forEach((traceIndex, i) => {
+                    Plotly.restyle(plotDiv, {
+                        y: [updateData[i].y]
+                    }, [traceIndex]);
+                });
+                
+                console.log(`Updated ${updateIndices.length} spectrogram traces to ${spectrogramViewState.viewMode} view`);
+            } catch (error) {
+                console.error('Error updating spectrogram view:', error);
+            }
+        }
+    }
 
-// Also call when plot updates (zooming, etc.)
-document.getElementById('{{PLOT_ID}}').on('plotly_relayout', resizeDataTable);
 
+
+    
+    // Add this function to dynamically resize the table with zoom
+    function resizeDataTable() {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const tableContainer = document.getElementById('dataTableContainer');
+        
+        if (plotDiv && tableContainer) {
+            const plotRect = plotDiv.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            
+            // Calculate available space to the right of the plot
+            const availableWidth = viewportWidth - plotRect.right - 30; // 30px for margins
+            
+            // Set table width to use most of the available space
+            const tableWidth = Math.max(250, Math.min(availableWidth * 0.9, 600)); // 90% of available, max 600px
+            
+            tableContainer.style.width = tableWidth + 'px';
+            tableContainer.style.left = (plotRect.right + 10) + 'px'; // Position just right of plot
+        }
+    }
+
+    function resizeControlPanel() {
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        const controlPanel = document.querySelector('.control-panel');
+        
+        if (plotDiv && controlPanel) {
+            const plotRect = plotDiv.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            
+            // Calculate available space to the right of the plot
+            const availableWidth = viewportWidth - plotRect.right - 30; // 30px for margins
+            
+            // Set control panel width to use available space
+            const panelWidth = Math.max(150, Math.min(availableWidth * 0.9, 200)); // 90% of available, max 200px
+            
+            controlPanel.style.width = panelWidth + 'px';
+            controlPanel.style.left = (plotRect.right + 10) + 'px'; // Position just right of plot
+            controlPanel.style.top = (plotRect.top + 10) + 'px'; // Position at top of plot area
+        }
+    }
+
+    // Call on load and resize
+    window.addEventListener('load', resizeDataTable);
+    window.addEventListener('resize', resizeDataTable);
+
+    // Also call when plot updates (zooming, etc.)
+    document.getElementById('{{PLOT_ID}}').on('plotly_relayout', resizeDataTable);
 
     // Live table update functions
     function updateDataTable() {

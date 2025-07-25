@@ -42,8 +42,23 @@ def get_timestamp():
     return datetime.now().strftime("%H%M%S%f")[:-4]
 
 
-def calculate_psd(audio_path, n_fft=1024, fmin=None, fmax=None):
-    """Calculate PSD with zero padding, n_fft, frequency range - robust path handling."""
+
+
+# Dual-Resolution PSD and Spectrogram Calculation, 
+# Interpolates spectrogram to smooth and restore info and, most importantly, match x-axis scaling
+def calculate_psd_spectro(audio_path, 
+                            # PSD Parameters (frequency-optimized)
+                            psd_n_fft=2048,
+                            psd_hop_length=None,
+                            
+                            # Spectrogram Parameters (time-optimized)  
+                            spec_n_fft=1024,
+                            spec_hop_length=None,
+                            
+                            # Control Flags
+                            use_dual_resolution=True,
+                            verbose=False):
+    """Calculate both PSD and spectrogram with dual resolution - PSD optimized for frequency, spectrogram for time."""
     
     # Convert to Path object for robust handling
     audio_path = Path(audio_path)
@@ -71,31 +86,81 @@ def calculate_psd(audio_path, n_fft=1024, fmin=None, fmax=None):
     
     if len(y) == 0:
         raise ValueError(f"Audio file is empty: {audio_path_str}")
-    
-    hop_length = 512
-    
-    # Compute STFT with zero-padding
-    stft_result = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
-    power_spectrum = np.abs(stft_result)**2
-    psd_mean = np.mean(power_spectrum, axis=1)
-    
-    frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-    
-    # Only apply frequency filtering if fmin and fmax are specified
-    if fmin is not None and fmax is not None:
-        # Create mask for frequency range
-        freq_mask = (frequencies >= fmin) & (frequencies <= fmax)
+
+    # Set hop lengths - be careful about x-axis scaling mismatches!!!
+    if psd_hop_length is None:
+        psd_hop_length = psd_n_fft // 16
+    if spec_hop_length is None:
+        spec_hop_length = spec_n_fft // 16
+
+    if verbose:
+        print(f"PSD: {psd_n_fft}-point FFT, {psd_hop_length} hop")
+        print(f"Spectrogram: {spec_n_fft}-point FFT, {spec_hop_length} hop")
+        print(f"Dual resolution: {'ON' if use_dual_resolution else 'OFF'}")
+
+
+
+    # DUAL RESOLUTION LOGIC WITH INTERPOLATION
+    if use_dual_resolution:
+        # HIGH FREQUENCY RESOLUTION PSD 
+        stft_psd = librosa.stft(y, n_fft=psd_n_fft, hop_length=psd_hop_length)
+        power_spectrum_psd = np.abs(stft_psd)**2
+        psd_mean = np.mean(power_spectrum_psd, axis=1)
+        frequencies = librosa.fft_frequencies(sr=sr, n_fft=psd_n_fft)  # Master frequency grid
         
-        if not np.any(freq_mask):
-            raise ValueError(f"No frequencies found in range {fmin}-{fmax} Hz")
+        # HIGH TIME RESOLUTION SPECTROGRAM
+        stft_spec = librosa.stft(y, n_fft=spec_n_fft, hop_length=spec_hop_length)
+        power_spectrum_spec = np.abs(stft_spec)**2
+        times = librosa.frames_to_time(np.arange(power_spectrum_spec.shape[1]), 
+                                       sr=sr, hop_length=spec_hop_length)
+        spec_frequencies = librosa.fft_frequencies(sr=sr, n_fft=spec_n_fft)
         
-        # Only return the values within the specified frequency range
-        filtered_frequencies = frequencies[freq_mask]
-        filtered_psd = psd_mean[freq_mask]
-        return filtered_frequencies, filtered_psd
+        # INTERPOLATE SPECTROGRAM TO MATCH PSD FREQUENCY GRID
+        from scipy.interpolate import interp1d
+        interpolated_spectrogram = np.zeros((len(frequencies), power_spectrum_spec.shape[1]))
+        
+        if verbose:
+            print(f"Interpolating spectrogram from {len(spec_frequencies)} to {len(frequencies)} freq bins")
+        
+        # Interpolate each time slice of the spectrogram
+        for time_idx in range(power_spectrum_spec.shape[1]):
+            # Create interpolation function for this time slice
+            interp_func = interp1d(
+                spec_frequencies, 
+                power_spectrum_spec[:, time_idx], 
+                kind='linear',           # Linear interpolation
+                bounds_error=False,     # Don't error if outside bounds
+                fill_value=0           # Use 0 for frequencies outside range
+            )
+            # Apply interpolation to get values at PSD frequency grid
+            interpolated_spectrogram[:, time_idx] = interp_func(frequencies)
+        
+        power_spectrum = interpolated_spectrogram
+        
+        if verbose:
+            print(f"Original spectrogram shape: {power_spectrum_spec.shape}")
+            print(f"Interpolated spectrogram shape: {power_spectrum.shape}")
+            print(f"PSD frequency resolution: {frequencies[1] - frequencies[0]:.2f} Hz/bin")
+            print(f"Original spec resolution: {spec_frequencies[1] - spec_frequencies[0]:.2f} Hz/bin")
+        
+
     else:
-        # Return full range
-        return frequencies, psd_mean
+        # SINGLE RESOLUTION (original behavior)
+        hop_length = psd_n_fft // 16
+        stft_result = librosa.stft(y, n_fft=psd_n_fft, hop_length=hop_length)
+        power_spectrum = np.abs(stft_result)**2
+        
+        # Get time axis
+        times = librosa.frames_to_time(np.arange(power_spectrum.shape[1]), 
+                                       sr=sr, hop_length=hop_length)
+        
+        # PSD is time-averaged
+        psd_mean = np.mean(power_spectrum, axis=1)
+        frequencies = librosa.fft_frequencies(sr=sr, n_fft=psd_n_fft)
+
+    # Return full range, no filtering
+    return frequencies, times, power_spectrum, psd_mean
+
 
 def find_artifacts_dir():
     """
@@ -158,11 +223,3 @@ def find_artifacts_dir():
     else:
         print(f"Using existing artifacts directory: {artifacts_dir}")
     return artifacts_dir
-
-
-
-
-
-
-
-
