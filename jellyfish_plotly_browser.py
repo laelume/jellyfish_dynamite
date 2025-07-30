@@ -460,7 +460,7 @@ def find_spectral_veins(spectrogram, frequencies, times, num_veins=6, freq_windo
     return veins
 
 
-def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=False, show_multi_veins=False, num_veins=3):
+def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=True, show_multi_veins=True, num_veins=5):
     """Plot spectrogram with optional vein overlays."""
     fig, ax = plt.subplots(figsize=(12, 6))
     
@@ -470,10 +470,10 @@ def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=
                    extent=[frequencies[0], frequencies[-1], times[0], times[-1]],
                    cmap='magma')
     
-    # Add max energy RIDGE (SOLID WHITE LINE)
+    # Add max energy RIDGE (SOLID CYAN LINE)
     if show_max_ridge: 
         ridge_times, ridge_freqs = find_max_energy_ridge(spectrogram, frequencies, times) 
-        ax.plot(ridge_freqs, ridge_times, 'w-', linewidth=2.5, alpha=0.9)
+        ax.plot(ridge_freqs, ridge_times, 'c-', linewidth=2.2, alpha=0.9)
         
         # Calculate visual slope (time vs frequency)
         visual_slope, _ = np.polyfit(ridge_freqs, ridge_times, 1)
@@ -482,15 +482,35 @@ def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=
     # Add multiple spectral VEINS (DASHED COLORED LINES)
     if show_multi_veins:
         veins = find_spectral_veins(spectrogram, frequencies, times, num_veins)  # CORRECT FUNCTION
-        vein_colors = ['cyan', 'yellow', 'magenta', 'lime', 'orange', 'teal']
-        
+        vein_colors = ['coral', 'yellow', 'magenta', 'lime', 'orange', 'teal', 'green', 'plum', 'orchid']
+            
         for i, vein in enumerate(veins[:len(vein_colors)]):
             if len(vein['freqs']) > 0:
+                # Draw the dashed line
                 ax.plot(vein['freqs'], vein['times'], '--', 
                     color=vein_colors[i], linewidth=1.8, alpha=0.7)
                 
+                # Find point of maximum energy along this vein
+                vein_energies = []
+                for freq, time in zip(vein['freqs'], vein['times']):
+                    freq_idx = np.argmin(np.abs(frequencies - freq))
+                    time_idx = np.argmin(np.abs(times - time))
+                    energy = spectrogram[freq_idx, time_idx]
+                    vein_energies.append(energy)
+                
+                if vein_energies:
+                    max_energy_idx = np.argmax(vein_energies)
+                    max_freq = vein['freqs'][max_energy_idx]
+                    max_time = vein['times'][max_energy_idx]
+                    
+                    # Add a dot at the maximum energy point
+                    ax.plot(max_freq, max_time, 'o', 
+                        color=vein_colors[i], markersize=6, 
+                        markeredgecolor='white', markeredgewidth=1)
+                
                 visual_slope, _ = np.polyfit(vein['freqs'], vein['times'], 1)
                 print(f"Spectral Vein {vein['rank']} visual slope: {visual_slope:.6f} s/Hz")
+                
     
     
     ax.set_xlabel('Frequency (Hz)')
@@ -510,8 +530,8 @@ class EnhancedInteractiveHarmonicPlot:
              max_pairs=10, is_db_scale=True, peak_fmin=None, peak_fmax=None, 
              plot_fmin=None, plot_fmax=None, height_percentile=0.5, prominence_factor=0.04,
              min_width=0.5, method_name="FFT_DUAL", top_padding_db=10,
-             times=None, spectrogram=None, show_max_energy_ridge=False, 
-             show_spectral_veins=False, num_veins=5):
+             times=None, spectrogram=None, show_max_energy_ridge=True, 
+             show_spectral_veins=True, num_veins=5):
         
         self.frequencies = frequencies
         self.psd = psd.copy()
@@ -560,11 +580,13 @@ class EnhancedInteractiveHarmonicPlot:
             self.spectrogram = None
             self.spectrogram_linear = None
             self.spectrogram_db = None
-            self.show_max_energy_ridge = show_max_energy_ridge
-            self.ridge_line = None
-            self.show_spectral_veins = show_spectral_veins
-            self.num_veins = num_veins
-            self.spectral_vein_lines = []
+        
+        # Moved out of the else loop to make sure ridge and veins are visible!
+        self.show_max_energy_ridge = show_max_energy_ridge
+        self.ridge_line = None
+        self.show_spectral_veins = show_spectral_veins
+        self.num_veins = num_veins
+        self.spectral_vein_lines = []
             
         ''' 
         # Legacy Conversion Stuff
@@ -1321,7 +1343,7 @@ class EnhancedInteractiveHarmonicPlot:
                 self.spectrogram_linear, self.frequencies, self.times
             )
             
-            self.ridge_line, = self.ax.plot(ridge_freqs, ridge_times, 'w--', 
+            self.ridge_line, = self.ax.plot(ridge_freqs, ridge_times, 'c--', 
                                         linewidth=2, alpha=0.8, 
                                         label='Spectral Ridge')
 
@@ -1652,6 +1674,8 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
                     top_padding_db=10,
                     times=times_arg,
                     spectrogram=spectrogram_arg, 
+                    show_max_energy_ridge=True, # defaults to true, change to false to initialize off
+                    show_spectral_veins=True, # defaults to true, change to false to initialize off
                     num_veins=6
                 )
                 plots.append(plot)
@@ -2543,7 +2567,7 @@ def save_jellyfish_jinja(template_vars, template_name, base_filename="psd_analys
     return html_path
 
 
-# PLOTLY
+# PLOTLY TEMPLATE ... TEMPLOT??
 
 def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scale=True):
     """Prepare template variables specifically for Plotly templates with dual scale support."""
@@ -2556,7 +2580,7 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
             elif isinstance(obj, np.ndarray):
                 return obj.tolist()
             return super().default(obj)
-    
+
     # Calculate grid dimensions from plots
     total_plots = len(plots)
     filenames = set()
@@ -2571,7 +2595,7 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
     n_methods = len(methods_set) if methods_set else total_plots
     n_rows = n_files
     n_cols = n_methods
-    
+
     # Calculate vertical spacing
     if n_rows > 1:
         v_spacing = min(0.15, 0.2 / (n_rows - 1))
@@ -2588,7 +2612,7 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         horizontal_spacing=0.08, 
         #specs=[[{"secondary_y": True} for _ in range(n_cols)] for _ in range(n_rows)]  # ADD THIS
     )
-    
+
     # Helper function to safely convert arrays
     def safe_tolist(arr):
         if hasattr(arr, 'tolist'):
@@ -2597,8 +2621,8 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
             return list(arr)
         else:
             return arr
-    
-    
+
+
     # Process each plot
     for i, plot in enumerate(plots):
 
@@ -2632,6 +2656,70 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         starting_psd = db_psd if use_db_scale else linear_psd
         starting_peak_powers = peak_powers_db if use_db_scale else peak_powers_linear
 
+
+        # Calculate and add spectral ridge and vein data
+        ridge_data = None
+        veins_data = None
+
+        # BEFORE adding spectrogram to Plotly:
+        # Check if this plot has spectrogram data (FFT_DUAL method)
+        if (hasattr(plot, 'has_spectrogram') and plot.has_spectrogram and 
+            hasattr(plot, 'spectrogram_linear') and plot.spectrogram_linear is not None):
+            try:
+                # Calculate spectral ridge
+                ridge_times, ridge_freqs = find_max_energy_ridge(
+                    plot.spectrogram_linear, plot.frequencies, plot.times
+                )
+                ridge_data = {
+                    'times': safe_tolist(ridge_times),
+                    'freqs': safe_tolist(ridge_freqs)
+                }
+                
+                # Calculate spectral veins
+                veins = find_spectral_veins(
+                    plot.spectrogram_linear, plot.frequencies, plot.times, 
+                    num_veins=getattr(plot, 'num_veins', 6)
+                )
+                veins_data = []
+                for vein in veins:
+                    veins_data.append({
+                        'times': safe_tolist(vein['times']),
+                        'freqs': safe_tolist(vein['freqs']),
+                        'center_freq': float(vein['center_freq']),
+                        'rank': int(vein['rank'])
+                    })
+                    
+                print(f"SUCCESS: Calculated ridge/veins for plot {i} - Ridge points: {len(ridge_data['freqs'])}, Veins: {len(veins_data)}")
+                    
+            except Exception as e:
+                print(f"ERROR calculating ridge/veins for plot {i}: {e}")
+                ridge_data = None
+                veins_data = None
+
+
+            # DEBUG 
+            # Check if data was calculated
+            print(f"RIDGE/VEIN DEBUG plot {i}: ridge_data={ridge_data is not None}, veins_data={veins_data is not None}")
+            if ridge_data:
+                print(f"  Ridge has {len(ridge_data['freqs'])} points")
+            if veins_data:
+                print(f"  Veins has {len(veins_data)} veins")
+
+            # DEBUG
+            print(f"PYTHON DEBUG for plot {i}:")
+            print(f"  ridge_data exists: {ridge_data is not None}")
+            print(f"  veins_data exists: {veins_data is not None}")
+            if ridge_data:
+                print(f"  ridge_data keys: {ridge_data.keys()}")
+                print(f"  ridge freqs length: {len(ridge_data['freqs'])}")
+                print(f"  ridge times length: {len(ridge_data['times'])}")
+            if veins_data:
+                print(f"  veins_data length: {len(veins_data)}")
+                print(f"  first vein sample: {veins_data[0] if veins_data else 'None'}")
+
+            times = safe_tolist(plot.times)
+
+
         # S P E C T R O G R A M !!!!!
         # remember - only the fft has this for now, wil fail for CQT etc. 
 
@@ -2639,7 +2727,6 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram:
             times = safe_tolist(plot.times)
             
-
             # Scale time to PSD range**
             psd_min = np.min(starting_psd)
             psd_max = np.max(starting_psd)
@@ -2702,7 +2789,10 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
                     'has_spectrogram': hasattr(plot, 'has_spectrogram') and plot.has_spectrogram,
                     'spectrogram_linear': safe_tolist(plot.spectrogram_linear) if hasattr(plot, 'spectrogram_linear') else None,
                     'spectrogram_db': safe_tolist(plot.spectrogram_db) if hasattr(plot, 'spectrogram_db') else None,
-                    'times': times if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram else None
+                    'times': times if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram else None,
+                    # Add veins and ridges
+                    'ridge_data': ridge_data,
+                    'veins_data': veins_data
                 }
             ),
             row=row, col=col,
@@ -2727,6 +2817,24 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
             secondary_y=False  # Optional but clear
         )
         
+        # Add spectral ridge if available!!
+        if ridge_data is not None:
+            plotly_fig.add_trace(
+                go.Scatter(
+                    x=ridge_data['freqs'],
+                    y=ridge_data['times'],
+                    mode='lines',
+                    name=f"ridge_{i}",
+                    line=dict(color='cyan', width=2.5),
+                    showlegend=False,
+                    visible=False,  # toggle visibility with 'e' key
+                    meta={
+                        'scale_type': 'ridge_trace'
+                    }
+                ),
+                row=row, col=col
+            )
+
         # Set axis properties
         if hasattr(plot, 'plot_fmin') and hasattr(plot, 'plot_fmax'):
             plotly_fig.update_xaxes(range=[plot.plot_fmin, plot.plot_fmax], row=row, col=col)
@@ -2734,7 +2842,7 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         plotly_fig.update_yaxes(title_text="PSD (dB)", row=row, col=col, secondary_y=False)  # Primary Y
         plotly_fig.update_yaxes(title_text="Time (s)", row=row, col=col, secondary_y=True)   # Secondary Y
 
-    
+
     # Update main layout
     plotly_fig.update_layout(
         title=f"Interactive PSD Analysis - Dir: {dir_name}",
@@ -2743,11 +2851,11 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         template="plotly_white",
         margin=dict(l=50, r=50, t=100, b=50)
     )
-    
+
     # Convert to JSON
     fig_json = plotly_fig.to_json()
     fig_dict = json.loads(fig_json)
-    
+
 
         
     subplot_titles = [getattr(plot, 'filename', f"Plot {i+1}") for i, plot in enumerate(plots)]
@@ -2773,9 +2881,9 @@ def save_spectrogram_images(plots, output_directory):
     """Save spectrograms as PNG images for HTML background use."""
     print(f"DEBUG: save_spectrogram_images called with {len(plots)} plots")
     print(f"DEBUG: output_directory = {output_directory}")
-    
+
     spectrogram_paths = []
-    
+
     for i, plot in enumerate(plots):
         print(f"DEBUG: Plot {i} - has_spectrogram: {hasattr(plot, 'has_spectrogram')}")
         if hasattr(plot, 'has_spectrogram'):
@@ -2823,7 +2931,7 @@ def save_spectrogram_images(plots, output_directory):
         else:
             print(f"DEBUG: Plot {i} has no spectrogram")
             spectrogram_paths.append(None)
-    
+
     print(f"DEBUG: Final spectrogram_paths: {spectrogram_paths}")
     return spectrogram_paths
 
@@ -2844,7 +2952,7 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
 
     # Prepare Plotly-specific template variables
     template_vars = prepare_plotly_template_vars(plots, methods, dir_name, use_db_scale)
-    
+
     # ADD SPECTROGRAM DATA TO TEMPLATE VARS
     template_vars['SPECTROGRAM_IMAGES'] = json.dumps(spectrogram_images)
     template_vars['HAS_SPECTROGRAMS'] = any(img is not None for img in spectrogram_images)
@@ -2872,7 +2980,7 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
     template_vars['TOTAL_PLOTS'] = len(plots)
 
     print(f"DEBUG: Grid dimensions - {n_files} files × {n_methods} methods = {len(plots)} total plots")
-    
+
 
     # Use the Plotly template
     template_name = "jellyfish_dynamite_plotly.html"
@@ -2880,13 +2988,13 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
 
     # Call the agnostic Jinja function
     html_path = save_jellyfish_jinja(template_vars, template_name, base_filename, output_directory)
-    
 
-    
+
+
     # Save pair and graph data (existing code from original function)
     data_filename = f"{dir_name}_{base_filename}{nfft_suffix}_{jelfun.get_timestamp()}_pairdata.json"
     data_path = os.path.join(output_directory, data_filename)
-    
+
     export_data = []
     for plot in plots:
         file_data = {
@@ -2903,14 +3011,14 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
                         'ratio': float(pair['f1'] / pair['f0'])
                     })
         export_data.append(file_data)
-    
+
     with open(data_path, 'w', encoding='utf-8') as f:
         json.dump(export_data, f, indent=2)
-    
+
     # Save graph data
     graph_filename = f"{dir_name}_{base_filename}{nfft_suffix}_{jelfun.get_timestamp()}_graphdata.json"
     graph_path = os.path.join(output_directory, graph_filename)
-    
+
     graph_export_data = []
     for plot in plots:
         graph_data = {'nodes': [], 'edges': []}
@@ -2949,19 +3057,23 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
             'graph': graph_data
         }
         graph_export_data.append(file_data)
-    
+
     with open(graph_path, 'w', encoding='utf-8') as f:
         json.dump(graph_export_data, f, indent=2)
-    
+
     print(f"Data saved to: {data_path}")
     print(f"Graph data saved to: {graph_path}")
-    
+
     return html_path, data_path, graph_path
 
 
+
+
+# GEOLOGY VERSION
+
 def main():
     import platform
-    
+
     try:
         import ipympl
         from IPython import get_ipython
@@ -2971,24 +3083,23 @@ def main():
             from IPython import get_ipython
             get_ipython().run_line_magic('matplotlib', 'notebook')
         except:
-            if platform.system() == 'Darwin':  # macOS
+            if platform.system() == 'Darwin':
                 matplotlib.use('Agg')
             else:
                 matplotlib.use('TkAgg')
                 plt.ion()
 
-    main_slicedir = all_slicedirs[68]  # Update this path
-
+    main_slicedir = all_slicedirs[68]
     nfft = 1024
-    methods = ["FFT_DUAL", "CQT", "Multi-Res", "Chirplet Zero"]
-    
+    # More minimal testing for now: 
+    methods = ["FFT_DUAL", "CQT"]#, "Multi-Res", "Chirplet Zero"]
+
     selected_files = select_audio_files(
         main_slicedir,
         range_start=0,
         range_end=None
     )
-    
-    # MATPLOTLIB PYTHON PLOTS
+   
     fig, plots, _, dir_short_name = compare_methods_psd_analysis(
         audio_directory=main_slicedir,
         max_cols=len(methods), 
@@ -3004,16 +3115,17 @@ def main():
         num_veins=6
     )
 
-    # HTML PLOTLY PLOTS
     if fig is not None:
         plt.show()
         html_path, data_path, graph_path = save_jellyfish_plotly(
             plots, 
-            base_filename=f"psd_analysis_plotly_{dir_short_name}",  # USE dir_short_name
+            base_filename=f"psd_analysis_plotly_{dir_short_name}",
             methods=methods,
-            dir_name=dir_short_name,  # PASS dir_short_name
+            dir_name=dir_short_name,
             use_db_scale=False, 
-            n_fft=nfft
+            n_fft=nfft, 
+            show_ridge=True, 
+            show_veins=True
         )
     else:
         print("No audio files found or analysis failed.")

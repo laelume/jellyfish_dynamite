@@ -666,6 +666,29 @@
                             </span>
                         </label>
                     </li>
+
+                    <li>
+                        <div class="toggle-label">Spectral Ridge</div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="ridgeToggle" onchange="toggleSpectralRidge() checked">
+                            <span class="slider">
+                                <span class="toggle-text left">Hide</span>
+                                <span class="toggle-text right">Show</span>
+                            </span>
+                        </label>
+                    </li>
+                    
+                    <li>
+                        <div class="toggle-label">Spectral Veins</div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="veinsToggle" onchange="toggleSpectralVeins() checked">
+                            <span class="slider">
+                                <span class="toggle-text left">Hide</span>
+                                <span class="toggle-text right">Show</span>
+                            </span>
+                        </label>
+                    </li>
+
                 </ul>
              </div>
 
@@ -703,6 +726,8 @@
                     <li><span class="highlight">D</span> - Toggle dB ↔ Linear scale</li>
                     <li><span class="highlight">S</span> - Toggle Spectrogram Visibility</li>
                     <li><span class="highlight">V</span> - Toggle Spectrogram View</li>
+                    <li><span class="highlight">E</span> - Toggle Spectral Ridge</li>
+                    <li><span class="highlight">F</span> - Toggle Spectral Veins</li>
                 </ul>
             </div>
 
@@ -791,9 +816,12 @@
                 Plotly.relayout("{{PLOT_ID}}", {
                     title: "Interactive PSD Analysis - Dir: {{DIR_NAME}}"
                 });
-
+                
+                
+                // HTML DEBUG SECTION 
                 setTimeout(function() {
                     const plotDiv = document.getElementById("{{PLOT_ID}}");
+
                     console.log("=== DEBUGGING PLOTLY DATA ===");
                     if (plotDiv && plotDiv._fullData) {
                         plotDiv._fullData.forEach((trace, index) => {
@@ -822,6 +850,31 @@
                             console.log("---");
                         });
                     }
+
+                    console.log("=== RIDGE/VEIN TRACE DEBUG ===");
+                    if (plotDiv && plotDiv._fullData) {
+                        plotDiv._fullData.forEach((trace, index) => {
+                            console.log(`Trace ${index}: name="${trace.name}", type="${trace.type}"`);
+                            if (trace.name && trace.name.startsWith('psd_')) {
+                                console.log(`  This is PSD trace for plot ${trace.name.split('_')[1]}`);
+                                if (trace.meta) {
+                                    console.log(`  Meta keys: ${Object.keys(trace.meta)}`);
+                                    console.log(`  Has ridge_data: ${!!trace.meta.ridge_data}`);
+                                    console.log(`  Has veins_data: ${!!trace.meta.veins_data}`);
+                                    if (trace.meta.ridge_data) {
+                                        console.log(`  Ridge freqs length: ${trace.meta.ridge_data.freqs ? trace.meta.ridge_data.freqs.length : 'NO FREQS'}`);
+                                    }
+                                    if (trace.meta.veins_data) {
+                                        console.log(`  Veins count: ${trace.meta.veins_data.length}`);
+                                    }
+                                } else {
+                                    console.log("  NO META!");
+                                }
+                            }
+                        });
+                    }
+               
+
                     console.log("=== END DEBUG ===");
                 }, 2000);
 
@@ -830,7 +883,11 @@
         </script>
     </div>
 
-    <!-- Enhanced Interactive JavaScript -->
+
+
+
+
+    <!-- JavaScript Section -->
     <script>
 
     // Global variables for interaction state
@@ -857,12 +914,13 @@
 
     const subplotTitles = {{SUBPLOT_TITLES}};
     
-    // Global state for initializing spectrogram view
+    // Spectrogram view initial defaults for global object
     let spectrogramViewState = {
         isVisible: true,
-        viewMode: 'top-half' // 'top-half' or 'full'
+        viewMode: 'top-half',
+        showRidge: true,
+        showVeins: true
     };
-
 
 
     function initializeScaleToggle() {
@@ -876,20 +934,14 @@
         console.log(`Initialized scale toggle: ${currentScale} scale`);
     }
 
-    // Initialize backgrounds after plot loads
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(createSpectrogramBackgrounds, 1000);
-    });
-
-
     // Initialize after Plotly loads
     document.addEventListener('DOMContentLoaded', function() {
         // setTimeout(initializeInteractivity, 1000);
         setTimeout(function() {
             initializeScaleToggle();
             initializeInteractivity();
-            
-            // ADD THESE NEW LINES:
+            initializeSpectralFeatures();
+
             resizeDataTable();
             resizeControlPanel();
 
@@ -925,6 +977,39 @@
         
         updateStatusDisplay('Interactive analysis ready. Click on peaks to select them.');
     }
+
+    function initializeSpectralFeatures() {
+        console.log('Initializing spectral features as visible...');
+        
+        // FORCE checkboxes to match JavaScript state
+        const ridgeToggle = document.getElementById('ridgeToggle');
+        const veinsToggle = document.getElementById('veinsToggle');
+        
+        if (ridgeToggle) {
+            ridgeToggle.checked = spectrogramViewState.showRidge; // Force to true
+        }
+        if (veinsToggle) {
+            veinsToggle.checked = spectrogramViewState.showVeins; // Force to true
+        }
+        
+        console.log('Ridge toggle set to:', ridgeToggle ? ridgeToggle.checked : 'not found');
+        console.log('Veins toggle set to:', veinsToggle ? veinsToggle.checked : 'not found');
+        
+        // Wait a bit for plot data to be fully ready
+        setTimeout(function() {
+            // Draw ridges and veins based on initial state
+            for (var i = 0; i < plotData.length; i++) {
+                if (spectrogramViewState.showRidge) {
+                    drawSpectralRidge(i);
+                }
+                if (spectrogramViewState.showVeins) {
+                    drawSpectralVeins(i);
+                }
+            }
+            updateStatusDisplay('Spectral ridges and veins initialized as visible');
+        }, 500);
+    }
+
 
     function extractPlotData() {
         const plotDiv = document.getElementById('{{PLOT_ID}}');
@@ -1047,6 +1132,8 @@
 
 
     function handleClick(data) {
+        console.log('handleClick called:', data);
+
         if (!data.points || data.points.length === 0) return;
         
         const point = data.points[0];
@@ -1280,22 +1367,22 @@
         const key = event.key.toLowerCase();
         
         switch(key) {
-            case 'l':
+            case 'l': // l for lines
                 removeAllConnectingLines();
                 break;
-            case 'c':
+            case 'c': // c for clear
                 clearActiveSelections(); // Clear only active subplot
                 break;
-            case 'r':
+            case 'r': // r for reset
                 resetAllData(); // Reset peaks and pairs for entire plot
                 break;
-            case 'a':
+            case 'a': // a for all
                 connectAllPeaks();
                 break;
-            case 'm':
+            case 'm': // m for matrix
                 showMatrixAnalysis();
                 break;
-            case 'd':
+            case 'd': // d for db
                 document.getElementById('scaleToggle').checked = !document.getElementById('scaleToggle').checked;
                 toggleScaleMode();
                 break;
@@ -1308,13 +1395,19 @@
             case '3':
                 selectThirdHighestPeakForAllSubplots();
                 break;
-            case 's':
+            case 's': // s for spectrogram
                 document.getElementById('spectrogramToggle').checked = !document.getElementById('spectrogramToggle').checked;
                 toggleSpectrogramVisibility();
                 break;
-            case 'v':
+            case 'v': // v for view
                 document.getElementById('spectrogramViewToggle').checked = !document.getElementById('spectrogramViewToggle').checked;
                 toggleSpectrogramView();
+                break;
+            case 'e': // e for energy
+                toggleSpectralRidge();
+                break;
+            case 'f': // f for flow
+                toggleSpectralVeins();
                 break;
         }
     }
@@ -2305,9 +2398,222 @@
     }
 
 
+    // Spectral Ridges and Veins (Sonic Geology :)
+
+    function drawSpectralRidge(plotIndex) {
+        var fig = document.getElementsByClassName('js-plotly-plot')[0];
+        
+        // Remove old ridge traces
+        removeTracesByName('ridge_' + plotIndex);
+        
+        // Get plot data
+        var plot = plotData[plotIndex];
+        
+        // Find the main trace - try by name first, then by index
+        var mainTrace = null;
+        
+        // Method 1: Find by name pattern
+        for (var i = 0; i < fig.data.length; i++) {
+            if (fig.data[i].name === 'psd_' + plotIndex) {
+                mainTrace = fig.data[i];
+                break;
+            }
+        }
+        
+        // Method 2: Fallback to index if available
+        if (!mainTrace && plot && plot.mainTraceIndex !== undefined) {
+            mainTrace = fig.data[plot.mainTraceIndex];
+        }
+        
+        if (!mainTrace || !mainTrace.meta || !mainTrace.meta.ridge_data) {
+            console.log('No ridge data available for plot ' + plotIndex);
+            console.log('mainTrace exists:', !!mainTrace);
+            if (mainTrace) {
+                console.log('meta exists:', !!mainTrace.meta);
+                if (mainTrace.meta) {
+                    console.log('ridge_data exists:', !!mainTrace.meta.ridge_data);
+                    console.log('ridge_data content:', mainTrace.meta.ridge_data);
+                }
+            }
+            return;
+        }
+        
+        var ridgeData = mainTrace.meta.ridge_data;
+        var axisRef = getAxisReference(plotIndex);
+        
+        console.log('Ridge data found:', ridgeData);
+        console.log('Ridge freqs length:', ridgeData.freqs ? ridgeData.freqs.length : 'NO FREQS');
+        console.log('Ridge times length:', ridgeData.times ? ridgeData.times.length : 'NO TIMES');
+        
+        // Add ridge as cyan dashed line
+        var ridgeTrace = {
+            x: ridgeData.freqs,
+            y: ridgeData.times,
+            mode: 'lines',
+            line: { color: 'cyan', width: 3, dash: 'solid' },  // Make more visible for debugging
+            name: 'ridge_' + plotIndex,
+            showlegend: false,
+            xaxis: axisRef.x,
+            yaxis: axisRef.y,
+            opacity: 1.0  // Full opacity for debugging
+        };
+        
+        Plotly.addTraces(fig, [ridgeTrace]);
+        console.log('Drew spectral ridge for plot ' + plotIndex + ' with ' + ridgeData.freqs.length + ' points');
+    }
+
+
+
+
+    function drawSpectralVeins(plotIndex) {
+        var fig = document.getElementsByClassName('js-plotly-plot')[0];
+        
+        // Remove old vein traces
+        removeTracesByName('vein_' + plotIndex);
+        
+        // Get plot data - FIX: Uncomment this line
+        var plot = plotData[plotIndex];
+        
+        // Find the main trace - try by name first, then by index
+        var mainTrace = null;
+        
+        // Method 1: Find by name pattern
+        for (var i = 0; i < fig.data.length; i++) {
+            if (fig.data[i].name === 'psd_' + plotIndex) {
+                mainTrace = fig.data[i];
+                break;
+            }
+        }
+        
+        // Method 2: Fallback to index if available
+        if (!mainTrace && plot && plot.mainTraceIndex !== undefined) {
+            mainTrace = fig.data[plot.mainTraceIndex];
+        }
+        
+        if (!mainTrace || !mainTrace.meta || !mainTrace.meta.veins_data) {
+            console.log('No vein data available for plot ' + plotIndex);
+            console.log('mainTrace exists:', !!mainTrace);
+            if (mainTrace) {
+                console.log('meta exists:', !!mainTrace.meta);
+                if (mainTrace.meta) {
+                    console.log('veins_data exists:', !!mainTrace.meta.veins_data);
+                    console.log('veins_data content:', mainTrace.meta.veins_data);
+                }
+            }
+            return;
+        }
+        
+        var veinsData = mainTrace.meta.veins_data;
+        var axisRef = getAxisReference(plotIndex);
+        
+        // CUSTOMIZE VEIN COLORS HERE
+        var veinColors = [
+            '#00ffff',  // Cyan
+            '#ffff00',  // Yellow  
+            '#ff00ff',  // Magenta
+            '#00ff00',  // Lime
+            '#ffa500',  // Orange
+            '#40e0d0'   // Turquoise
+        ];
+        
+        var veinTraces = [];
+        
+        console.log('Veins data found:', veinsData);
+        console.log('Number of veins:', veinsData.length);
+        
+        for (var i = 0; i < veinsData.length && i < veinColors.length; i++) {
+            var vein = veinsData[i];
+            console.log(`Vein ${i}:`, vein);
+            
+            if (vein.freqs && vein.freqs.length > 0) {
+                console.log(`  Vein ${i} has ${vein.freqs.length} frequency points`);
+                
+                veinTraces.push({
+                    x: vein.freqs,
+                    y: vein.times,
+                    mode: 'lines',
+                    line: { 
+                        color: veinColors[i], 
+                        width: 2.5,           // Make more visible
+                        dash: 'dash' 
+                    },
+                    name: 'vein_' + plotIndex + '_' + i,
+                    showlegend: false,
+                    xaxis: axisRef.x,
+                    yaxis: axisRef.y,
+                    opacity: 0.9              // High opacity for visibility
+                });
+            } else {
+                console.log(`  Vein ${i} has no frequency data`);
+            }
+        }
+        
+        if (veinTraces.length > 0) {
+            Plotly.addTraces(fig, veinTraces);
+            console.log('Drew ' + veinTraces.length + ' spectral veins for plot ' + plotIndex);
+        } else {
+            console.log('No vein traces were created for plot ' + plotIndex);
+        }
+    }
+
+    function removeTracesByName(namePattern) {
+        var fig = document.getElementsByClassName('js-plotly-plot')[0];
+        var tracesToRemove = [];
+        
+        console.log('Looking for traces to remove with pattern:', namePattern);
+        
+        for (var i = 0; i < fig.data.length; i++) {
+            if (fig.data[i].name && fig.data[i].name.includes(namePattern)) {
+                console.log('Found trace to remove:', fig.data[i].name);
+                tracesToRemove.push(i);
+            }
+        }
+        
+        if (tracesToRemove.length > 0) {
+            console.log('Removing', tracesToRemove.length, 'traces');
+            Plotly.deleteTraces(fig, tracesToRemove);
+        } else {
+            console.log('No traces found to remove for pattern:', namePattern);
+        }
+    }
+
+
+    function toggleSpectralRidge() {
+        const toggle = document.getElementById('ridgeToggle');
+        spectrogramViewState.showRidge = toggle.checked;  // checked = show, unchecked = hide
+        
+        for (var i = 0; i < plotData.length; i++) {
+            if (spectrogramViewState.showRidge) {
+                drawSpectralRidge(i);
+            } else {
+                removeTracesByName('ridge_' + i);
+            }
+        }
+        
+        updateStatusDisplay('Spectral ridge: ' + (spectrogramViewState.showRidge ? 'ON' : 'OFF'));
+    }
+
+    function toggleSpectralVeins() {
+        const toggle = document.getElementById('veinsToggle');
+        spectrogramViewState.showVeins = toggle.checked;  // checked = show, unchecked = hide
+        
+        for (var i = 0; i < plotData.length; i++) {
+            if (spectrogramViewState.showVeins) {
+                drawSpectralVeins(i);
+            } else {
+                removeTracesByName('vein_' + i);
+            }
+        }
+        
+        updateStatusDisplay('Spectral veins: ' + (spectrogramViewState.showVeins ? 'ON' : 'OFF'));
+    }
+
+
+
+
 
     
-    // Add this function to dynamically resize the table with zoom
+    // Data Table Dynamic Resizing
     function resizeDataTable() {
         const plotDiv = document.getElementById('{{PLOT_ID}}');
         const tableContainer = document.getElementById('dataTableContainer');
@@ -2593,6 +2899,10 @@
             toggleBtn.textContent = 'Show Table';
         }
     }
+
+
+
+
 
 
     // Custom drag handling for navigation - grab and drag like Google Maps
