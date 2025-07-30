@@ -29,7 +29,7 @@
             <div class="row">
                 <div class="col-md-6">
                     <h5>Analysis Methods</h5>
-                    {% for method in ['FFT', 'CQT', 'Chirplet Zero', 'Multi-Res'] %}
+                    {% for method in ['FFT_DUAL', 'CQT', 'Chirplet Zero', 'Multi-Res'] %}
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="methods" value="{{ method }}" 
                                {% if method in config.DEFAULT_METHODS %}checked{% endif %}>
@@ -68,6 +68,60 @@
                 </div>
             </div>
             
+
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h5>🌊 Spectrogram Features</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="enable_spectrogram" id="enableSpectrogram" checked>
+                                <label class="form-check-label" for="enableSpectrogram">
+                                    Enable Spectrogram Background
+                                </label>
+                            </div>
+                            
+                            <div id="spectrogramOptions" class="mt-3">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Spectrogram Resolution</label>
+                                        <select class="form-select" name="spec_n_fft">
+                                            <option value="256">256 (Fast)</option>
+                                            <option value="512" selected>512 (Balanced)</option>
+                                            <option value="1024">1024 (Detailed)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Number of Veins</label>
+                                        <select class="form-select" name="num_veins">
+                                            <option value="3">3</option>
+                                            <option value="6" selected>6</option>
+                                            <option value="9">9</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="show_ridge" checked>
+                                            <label class="form-check-label">Show Spectral Ridge</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="show_veins" checked>
+                                            <label class="form-check-label">Show Spectral Veins</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
             <button type="submit" class="btn btn-primary btn-lg mt-4" id="submitBtn">
                 🚀 Analyze
             </button>
@@ -84,6 +138,30 @@
         document.getElementById('analysisForm').addEventListener('submit', function() {
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('progress').style.display = 'block';
+        });
+        
+        // ADD THIS NEW CODE INSIDE THE EXISTING SCRIPT TAG
+        document.getElementById('enableSpectrogram').addEventListener('change', function() {
+            const options = document.getElementById('spectrogramOptions');
+            options.style.display = this.checked ? 'block' : 'none';
+        });
+
+        // Method-based spectrogram availability
+        document.querySelectorAll('input[name="methods"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const spectrogramSection = document.querySelector('#enableSpectrogram').closest('.card');
+                const fftDualSelected = document.querySelector('input[value="FFT_DUAL"]:checked');
+                
+                if (fftDualSelected) {
+                    spectrogramSection.style.opacity = '1';
+                    spectrogramSection.style.pointerEvents = 'auto';
+                } else {
+                    spectrogramSection.style.opacity = '0.5';
+                    spectrogramSection.style.pointerEvents = 'none';
+                    document.getElementById('enableSpectrogram').checked = false;
+                    document.getElementById('spectrogramOptions').style.display = 'none';
+                }
+            });
         });
     </script>
 </body>
