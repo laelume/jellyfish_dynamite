@@ -2346,54 +2346,53 @@
             return;
         }
         
+        // Store original data on first run
+        if (!plotDiv._spectrogramOriginals) {
+            plotDiv._spectrogramOriginals = {};
+            plotDiv._fullData.forEach((trace, index) => {
+                if (trace.name && trace.name.includes('spectrogram_')) {
+                    plotDiv._spectrogramOriginals[index] = trace.y.slice();
+                }
+            });
+        }
+        
         // Find all spectrogram traces and update their Y positioning
         const updateIndices = [];
         const updateData = [];
         
         plotDiv._fullData.forEach((trace, index) => {
             if (trace.name && trace.name.includes('spectrogram_')) {
-                // Keep the full spectrogram data
-                const originalZ = trace.z;
-                const originalTimes = trace.y;
+                // Use stored original times, not current trace.y
+                const originalTimes = plotDiv._spectrogramOriginals[index];
+                
+                if (!originalTimes) return;
                 
                 let newY;
                 
                 if (spectrogramViewState.viewMode === 'top-half') {
-                    // Compress the time axis to fit in top half of subplot
                     const maxTime = Math.max(...originalTimes);
                     const minTime = Math.min(...originalTimes);
                     const timeRange = maxTime - minTime;
                     
-                    // Scale times to occupy only top half (50%-100% of Y range)
                     newY = originalTimes.map(time => {
-                        const normalizedTime = (time - minTime) / timeRange; // 0 to 1
-                        return minTime + (normalizedTime * 0.5 + 0.5) * timeRange; // Map to top half
+                        const normalizedTime = (time - minTime) / timeRange;
+                        return minTime + (normalizedTime * 0.5 + 0.5) * timeRange;
                     });
                 } else {
-                    // Show full spectrogram across entire Y range
-                    newY = originalTimes;
+                    newY = originalTimes.slice();
                 }
                 
                 updateIndices.push(index);
-                updateData.push({
-                    y: newY
-                });
+                updateData.push({ y: newY });
             }
         });
         
-        // Apply updates if we found spectrogram traces
+        // Apply updates
         if (updateIndices.length > 0) {
-            try {
-                updateIndices.forEach((traceIndex, i) => {
-                    Plotly.restyle(plotDiv, {
-                        y: [updateData[i].y]
-                    }, [traceIndex]);
-                });
-                
-                console.log(`Updated ${updateIndices.length} spectrogram traces to ${spectrogramViewState.viewMode} view`);
-            } catch (error) {
-                console.error('Error updating spectrogram view:', error);
-            }
+            updateIndices.forEach((traceIndex, i) => {
+                Plotly.restyle(plotDiv, { y: [updateData[i].y] }, [traceIndex]);
+            });
+            console.log(`Updated ${updateIndices.length} spectrogram traces to ${spectrogramViewState.viewMode} view`);
         }
     }
 
