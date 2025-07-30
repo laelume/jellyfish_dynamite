@@ -59,7 +59,7 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
 
 4. **Run the application:**
    ```bash
-   python jelly_jelly_app.py
+   python jelly_app.py
    ```
 
 5. **Open browser** and go to:
@@ -198,7 +198,7 @@ python jellyfish_plotly_browser.py
 
 5. **Run the Flask application**:
    ```bash
-   python jelly_jelly_app.py
+   python jelly_app.py
    ```
 
 6. **Open browser** and navigate to:
