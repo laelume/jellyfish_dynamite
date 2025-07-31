@@ -610,7 +610,7 @@
     background-position: center;
     opacity: 0.5;
     pointer-events: none;
-    z-index: 0;
+    z-index: 0
     }
 
     .spectrogram-controls {
@@ -628,6 +628,17 @@
 <body>
     <div class="instructions">
         <h2>Jellyfish Dynamite (plotly): {{DIR_NAME}} - Dynamic Interactive Spectral Analysis</h2>
+
+        <div style="background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.3); border-radius: 8px; padding: 15px; margin: 15px 0;">
+            <h4 style="margin: 0 0 10px 0; color: #3498db; font-size: 16px;">🔧 Resolution Configuration</h4>
+            <div style="font-family: 'Courier New', monospace; font-size: 13px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 4px;">
+                <div style="margin-bottom: 4px;"><strong>PSD nfft:</strong> {{PSD_N_FFT|default('1024')}}</div>
+                <div style="margin-bottom: 4px;"><strong>Spectrogram nfft:</strong> {{SPEC_N_FFT|default('512')}}</div>
+                <div style="margin-bottom: 4px;"><strong>PSD Hop Length:</strong> {{PSD_HOP_LENGTH|default('256')}}</div>
+                <div><strong>Spectrogram Hop Length:</strong> {{SPEC_HOP_LENGTH|default('128')}}</div>
+            </div>
+        </div>
+
         <div class="controls">
             <!-- Toggle Switches -->
              <div class="section">
@@ -670,7 +681,7 @@
                     <li>
                         <div class="toggle-label">Spectral Ridge</div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="ridgeToggle" onchange="toggleSpectralRidge() checked">
+                            <input type="checkbox" id="ridgeToggle" onchange="toggleSpectralRidge()" checked>
                             <span class="slider">
                                 <span class="toggle-text left">Hide</span>
                                 <span class="toggle-text right">Show</span>
@@ -681,7 +692,7 @@
                     <li>
                         <div class="toggle-label">Spectral Veins</div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="veinsToggle" onchange="toggleSpectralVeins() checked">
+                            <input type="checkbox" id="veinsToggle" onchange="toggleSpectralVeins()" checked>
                             <span class="slider">
                                 <span class="toggle-text left">Hide</span>
                                 <span class="toggle-text right">Show</span>
@@ -1412,13 +1423,23 @@
         }
     }
 
+
+
+
+
     function selectHighestPeakForAllSubplots() {
         let totalSelected = 0;
         
-        plotData.forEach((plot, plotIndex) => {
-            // Use the grey dot peaks that were detected by Python
+        console.log(`Processing ${plotData.length} plots for highest peaks...`);
+        
+        for (let plotIndex = 0; plotIndex < plotData.length; plotIndex++) {
+            const plot = plotData[plotIndex];
+            console.log(`Processing plot ${plotIndex}: ${plot.filename || 'Unknown'}`);
+            
             const detectedPeaks = plot.peak_freqs || [];
             const detectedPowers = plot.peak_powers || [];
+            
+            console.log(`  Found ${detectedPeaks.length} peaks`);
             
             if (detectedPeaks.length >= 1) {
                 // Create array of peak-power pairs and sort by power descending
@@ -1429,20 +1450,30 @@
                 
                 // Get highest peak (index 0)
                 const highestFreq = peakPowerPairs[0].frequency;
+                console.log(`  Highest peak: ${highestFreq.toFixed(1)} Hz (power: ${peakPowerPairs[0].power.toFixed(3)})`);
                 
-                // Add this peak if not already selected
                 const selectedSet = interactionState.selectedPeaks.get(plotIndex);
-                if (!selectedSet.has(highestFreq)) {
+                if (selectedSet && !selectedSet.has(highestFreq)) {
                     selectedSet.add(highestFreq);
                     const graph = harmonicGraphs.get(plotIndex);
-                    graph.nodes.add(highestFreq);
+                    if (graph) {
+                        graph.nodes.add(highestFreq);
+                    }
                     totalSelected++;
+                    console.log(`  ✓ Added peak ${highestFreq.toFixed(1)} Hz to plot ${plotIndex}`);
+                } else {
+                    console.log(`  - Peak ${highestFreq.toFixed(1)} Hz already selected for plot ${plotIndex}`);
                 }
+            } else {
+                console.log(`  No peaks found for plot ${plotIndex}`);
             }
             
+            // Update display for this specific plot
+            console.log(`  Updating display for plot ${plotIndex}`);
             updateDisplay(plotIndex);
-        });
+        }
         
+        console.log(`Total selected: ${totalSelected} peaks across ${plotData.length} plots`);
         updateStatusDisplay(`Auto-selected ${totalSelected} highest detected peaks across all subplots`);
         updateDataTable();
     }
@@ -1450,33 +1481,32 @@
     function selectSecondHighestPeakForAllSubplots() {
         let totalSelected = 0;
         
-        plotData.forEach((plot, plotIndex) => {
-            // Use the grey dot peaks that were detected by Python
+        for (let plotIndex = 0; plotIndex < plotData.length; plotIndex++) {
+            const plot = plotData[plotIndex];
             const detectedPeaks = plot.peak_freqs || [];
             const detectedPowers = plot.peak_powers || [];
             
             if (detectedPeaks.length >= 2) {
-                // Create array of peak-power pairs and sort by power descending
                 const peakPowerPairs = detectedPeaks.map((freq, i) => ({
                     frequency: freq,
                     power: detectedPowers[i] || 0
                 })).sort((a, b) => b.power - a.power);
                 
-                // Get second highest peak (index 1)
                 const secondHighestFreq = peakPowerPairs[1].frequency;
                 
-                // Add this peak if not already selected
                 const selectedSet = interactionState.selectedPeaks.get(plotIndex);
-                if (!selectedSet.has(secondHighestFreq)) {
+                if (selectedSet && !selectedSet.has(secondHighestFreq)) {
                     selectedSet.add(secondHighestFreq);
                     const graph = harmonicGraphs.get(plotIndex);
-                    graph.nodes.add(secondHighestFreq);
+                    if (graph) {
+                        graph.nodes.add(secondHighestFreq);
+                    }
                     totalSelected++;
                 }
             }
             
             updateDisplay(plotIndex);
-        });
+        }
         
         updateStatusDisplay(`Auto-selected ${totalSelected} second highest detected peaks across all subplots`);
         updateDataTable();
@@ -1485,37 +1515,87 @@
     function selectThirdHighestPeakForAllSubplots() {
         let totalSelected = 0;
         
-        plotData.forEach((plot, plotIndex) => {
-            // Use the grey dot peaks that were detected by Python
+        for (let plotIndex = 0; plotIndex < plotData.length; plotIndex++) {
+            const plot = plotData[plotIndex];
             const detectedPeaks = plot.peak_freqs || [];
             const detectedPowers = plot.peak_powers || [];
             
             if (detectedPeaks.length >= 3) {
-                // Create array of peak-power pairs and sort by power descending
                 const peakPowerPairs = detectedPeaks.map((freq, i) => ({
                     frequency: freq,
                     power: detectedPowers[i] || 0
                 })).sort((a, b) => b.power - a.power);
                 
-                // Get third highest peak (index 2)
                 const thirdHighestFreq = peakPowerPairs[2].frequency;
                 
-                // Add this peak if not already selected
                 const selectedSet = interactionState.selectedPeaks.get(plotIndex);
-                if (!selectedSet.has(thirdHighestFreq)) {
+                if (selectedSet && !selectedSet.has(thirdHighestFreq)) {
                     selectedSet.add(thirdHighestFreq);
                     const graph = harmonicGraphs.get(plotIndex);
-                    graph.nodes.add(thirdHighestFreq);
+                    if (graph) {
+                        graph.nodes.add(thirdHighestFreq);
+                    }
                     totalSelected++;
                 }
             }
             
             updateDisplay(plotIndex);
-        });
+        }
         
         updateStatusDisplay(`Auto-selected ${totalSelected} third highest detected peaks across all subplots`);
         updateDataTable();
     }
+
+
+
+    function debugPlotData() {
+        console.log('=== DEBUGGING PLOT DATA ===');
+        console.log('plotData.length:', plotData.length);
+        console.log('interactionState.selectedPeaks size:', interactionState.selectedPeaks.size);
+        console.log('harmonicGraphs size:', harmonicGraphs.size);
+        
+        plotData.forEach((plot, plotIndex) => {
+            console.log(`Plot ${plotIndex}:`, {
+                filename: plot.filename,
+                peak_freqs_count: plot.peak_freqs ? plot.peak_freqs.length : 'undefined',
+                peak_powers_count: plot.peak_powers ? plot.peak_powers.length : 'undefined',
+                has_selectedPeaks: interactionState.selectedPeaks.has(plotIndex),
+                has_harmonicGraph: harmonicGraphs.has(plotIndex)
+            });
+            
+            if (interactionState.selectedPeaks.has(plotIndex)) {
+                console.log(`  Selected peaks for plot ${plotIndex}:`, Array.from(interactionState.selectedPeaks.get(plotIndex)));
+            }
+        });
+        console.log('=== END DEBUG ===');
+    }
+
+
+    function debugUpdate() {
+        console.log('=== DEBUG UPDATE STATUS ===');
+        
+        for (let plotIndex = 0; plotIndex < plotData.length; plotIndex++) {
+            const selectedSet = interactionState.selectedPeaks.get(plotIndex);
+            const selectedPeaks = selectedSet ? Array.from(selectedSet) : [];
+            
+            console.log(`Plot ${plotIndex}: ${selectedPeaks.length} selected peaks:`, selectedPeaks.map(f => f.toFixed(1)));
+            
+            // Check if visual traces exist for this plot
+            const plotDiv = document.getElementById('{{PLOT_ID}}');
+            const visualTraces = plotDiv._fullData.filter(trace => 
+                trace.name && trace.name.includes(`selected_${plotIndex}`)
+            );
+            
+            console.log(`  Visual traces: ${visualTraces.length}`);
+            if (visualTraces.length > 0) {
+                console.log(`  Visual trace data:`, visualTraces[0].x, visualTraces[0].y);
+            }
+        }
+        
+        console.log('=== END DEBUG UPDATE ===');
+    }
+
+
 
     function removeAllConnectingLines() {
         let totalPairsRemoved = 0;
@@ -1830,6 +1910,7 @@
         }
     }
 
+
     function updateDisplay(plotIndex) {
         console.log(`[${Date.now()}] updateDisplay START for plot ${plotIndex}`);
 
@@ -1839,7 +1920,7 @@
         const plot = plotData[plotIndex];
         const selectedSet = interactionState.selectedPeaks.get(plotIndex);
         const pairs = interactionState.pairs.get(plotIndex);
-    
+
         console.log(`[${Date.now()}] Selected peaks:`, Array.from(selectedSet));
         console.log(`[${Date.now()}] Pairs:`, pairs.length);        
         
@@ -1850,7 +1931,7 @@
                 trace.name.includes(`selected_${plotIndex}`) ||
                 trace.name.includes(`pair_${plotIndex}`) ||
                 trace.name.includes(`vline_${plotIndex}`)
-            )) {
+            ) && !trace.name.includes(`ridge_`) && !trace.name.includes(`vein_`)) {
                 tracesToRemove.push(index);
             }
         });
@@ -1865,38 +1946,50 @@
         const tracesToAdd = [];
         const axisRef = getAxisReference(plotIndex);
         
-        // FIXED: Get current scale data for peak power calculation
+        // RESTORED: Your original scale-aware peak power calculation
         function getCurrentPeakPower(frequency) {
-            // Find the main trace for this plot to get current scale data
-            const mainTrace = plotDiv._fullData[plot.mainTraceIndex];
-            if (!mainTrace || !mainTrace.meta) {
-                // Fallback: find peak in original data
-                const idx = plot.peak_freqs.findIndex(f => Math.abs(f - frequency) < 1);
-                return idx >= 0 ? plot.peak_powers[idx] : 0;
-            }
+            // Use the peak data with current scale
+            const peakFreqs = plot.peak_freqs || [];
+            const peakPowers = currentScale === 'db' ? 
+                (plot.peak_powers_db || plot.peak_powers || []) :
+                (plot.peak_powers_linear || plot.peak_powers || []);
             
-            // Get data for current scale
-            const frequencies = mainTrace.x;
-            const currentPSD = currentScale === 'db' ? mainTrace.meta.db_psd : mainTrace.meta.linear_psd;
-            
-            // Find closest frequency and return corresponding power
+            // Find the closest peak frequency
             let minDist = Infinity;
             let closestPower = 0;
-            for (let i = 0; i < frequencies.length; i++) {
-                const dist = Math.abs(frequencies[i] - frequency);
+            
+            for (let i = 0; i < peakFreqs.length; i++) {
+                const dist = Math.abs(peakFreqs[i] - frequency);
                 if (dist < minDist) {
                     minDist = dist;
-                    closestPower = currentPSD[i];
+                    closestPower = peakPowers[i] || 0;
                 }
             }
+            
             return closestPower;
         }
         
         // Add selected peaks with current scale powers
-        if (selectedSet.size > 0) {
+        if (selectedSet && selectedSet.size > 0) {
             const selectedFreqs = Array.from(selectedSet);
             const selectedPowers = selectedFreqs.map(freq => getCurrentPeakPower(freq));
             
+            // RESTORED: Your original Y-range calculation with scale awareness
+            const currentPSD = currentScale === 'db' ? 
+                (plot.psd_db || plot.frequencies?.map(() => -60) || []) :
+                (plot.psd_linear || plot.frequencies?.map(() => 0) || []);
+            
+            let yMin, yMax;
+            if (currentPSD.length > 0) {
+                yMin = Math.min(...currentPSD);
+                yMax = Math.max(...currentPSD);
+            } else {
+                // Fallback based on scale
+                yMin = currentScale === 'db' ? -60 : 0;
+                yMax = currentScale === 'db' ? 20 : 1;
+            }
+            
+            // Add selected peak markers
             tracesToAdd.push({
                 x: selectedFreqs,
                 y: selectedPowers,
@@ -1914,9 +2007,24 @@
                 xaxis: axisRef.x,
                 yaxis: axisRef.y
             });
+            
+            // FIXED: Add vertical dashed lines with unique names
+            selectedFreqs.forEach((freq, idx) => {
+                tracesToAdd.push({
+                    x: [freq, freq, null],
+                    y: [yMin, yMax, null],
+                    mode: 'lines',
+                    line: { color: 'blue', width: 1, dash: 'dot' },
+                    opacity: 0.7,
+                    name: `selected_vline_${plotIndex}_${idx}`, // UNIQUE NAMES
+                    showlegend: false,
+                    xaxis: axisRef.x,
+                    yaxis: axisRef.y
+                });
+            });
         }
-        
-        // Add pairs with connecting lines and vertical lines
+
+        // RESTORED: Your original pairs code with scale awareness
         pairs.forEach((pair, pairIndex) => {
             const f0Power = getCurrentPeakPower(pair.f0);
             const f1Power = getCurrentPeakPower(pair.f1);
@@ -1940,27 +2048,6 @@
                 xaxis: axisRef.x,
                 yaxis: axisRef.y
             });
-            
-            // Vertical lines - get Y range from current main trace
-            const mainTrace = plotDiv._fullData[plot.mainTraceIndex];
-            const currentPSD = currentScale === 'db' ? 
-                (mainTrace.meta ? mainTrace.meta.db_psd : mainTrace.y) : 
-                (mainTrace.meta ? mainTrace.meta.linear_psd : mainTrace.y);
-            
-            const yMin = Math.min(...currentPSD);
-            const yMax = Math.max(...currentPSD);
-            
-            tracesToAdd.push({
-                x: [pair.f0, pair.f0, null, pair.f1, pair.f1, null],
-                y: [yMin, yMax, null, yMin, yMax, null],
-                mode: 'lines',
-                line: { color: pair.color, width: 1, dash: 'dash' },
-                opacity: 0.7,
-                name: `vline_${plotIndex}_${pairIndex}`,
-                showlegend: false,
-                xaxis: axisRef.x,
-                yaxis: axisRef.y
-            });
         });
         
         // Add all traces at once
@@ -1972,8 +2059,7 @@
         updateRatioAnnotations(plotIndex);
         
         console.log(`[${Date.now()}] updateDisplay END for plot ${plotIndex}`);
-
-    }    
+    }
 
     function getAxisReference(plotIndex) {
         if (plotIndex === 0) {
@@ -2405,13 +2491,8 @@
         // Remove old ridge traces
         removeTracesByName('ridge_' + plotIndex);
         
-        // Get plot data
-        var plot = plotData[plotIndex];
-        
-        // Find the main trace - try by name first, then by index
+        // Get ridge data from main trace meta
         var mainTrace = null;
-        
-        // Method 1: Find by name pattern
         for (var i = 0; i < fig.data.length; i++) {
             if (fig.data[i].name === 'psd_' + plotIndex) {
                 mainTrace = fig.data[i];
@@ -2419,48 +2500,57 @@
             }
         }
         
-        // Method 2: Fallback to index if available
-        if (!mainTrace && plot && plot.mainTraceIndex !== undefined) {
-            mainTrace = fig.data[plot.mainTraceIndex];
-        }
-        
         if (!mainTrace || !mainTrace.meta || !mainTrace.meta.ridge_data) {
             console.log('No ridge data available for plot ' + plotIndex);
-            console.log('mainTrace exists:', !!mainTrace);
-            if (mainTrace) {
-                console.log('meta exists:', !!mainTrace.meta);
-                if (mainTrace.meta) {
-                    console.log('ridge_data exists:', !!mainTrace.meta.ridge_data);
-                    console.log('ridge_data content:', mainTrace.meta.ridge_data);
-                }
-            }
             return;
         }
         
         var ridgeData = mainTrace.meta.ridge_data;
         var axisRef = getAxisReference(plotIndex);
         
-        console.log('Ridge data found:', ridgeData);
-        console.log('Ridge freqs length:', ridgeData.freqs ? ridgeData.freqs.length : 'NO FREQS');
-        console.log('Ridge times length:', ridgeData.times ? ridgeData.times.length : 'NO TIMES');
+        // Get current PSD data and range
+        var currentPSD = currentScale === 'db' ? mainTrace.meta.db_psd : mainTrace.meta.linear_psd;
+        var psdMin = Math.min(...currentPSD);
+        var psdMax = Math.max(...currentPSD);
+        var psdRange = psdMax - psdMin;
         
-        // Add ridge as cyan dashed line
+        // Get time range from spectrogram meta (should be same as ridge times)
+        var originalTimes = ridgeData.times;
+        var timeMin = Math.min(...originalTimes);
+        var timeMax = Math.max(...originalTimes);
+        
+        // Apply EXACT same scaling as spectrogram in Python
+        var scaledTimes = originalTimes.map(function(t) {
+            var normalizedTime = (t - timeMin) / (timeMax - timeMin);  // 0 to 1
+            return psdMax - (psdRange * 0.5) + (normalizedTime * psdRange * 0.5);
+        });
+        
+        // Apply spectrogram view mode if in top-half mode
+        var finalTimes = scaledTimes;  // Default to the Python scaling
+        
+        if (spectrogramViewState.viewMode === 'full') {
+            // If switching to full mode, expand to use full PSD range
+            finalTimes = originalTimes.map(function(t) {
+                var normalizedTime = (t - timeMin) / (timeMax - timeMin);
+                return psdMin + (normalizedTime * psdRange);
+            });
+        }
+        
         var ridgeTrace = {
             x: ridgeData.freqs,
-            y: ridgeData.times,
+            y: finalTimes,
             mode: 'lines',
-            line: { color: 'cyan', width: 3, dash: 'solid' },  // Make more visible for debugging
+            line: { color: 'cyan', width: 3, dash: 'solid' },
             name: 'ridge_' + plotIndex,
             showlegend: false,
             xaxis: axisRef.x,
             yaxis: axisRef.y,
-            opacity: 1.0  // Full opacity for debugging
+            opacity: 1.0
         };
         
         Plotly.addTraces(fig, [ridgeTrace]);
         console.log('Drew spectral ridge for plot ' + plotIndex + ' with ' + ridgeData.freqs.length + ' points');
     }
-
 
 
 
@@ -2470,13 +2560,8 @@
         // Remove old vein traces
         removeTracesByName('vein_' + plotIndex);
         
-        // Get plot data - FIX: Uncomment this line
-        var plot = plotData[plotIndex];
-        
-        // Find the main trace - try by name first, then by index
+        // Get veins data from main trace meta
         var mainTrace = null;
-        
-        // Method 1: Find by name pattern
         for (var i = 0; i < fig.data.length; i++) {
             if (fig.data[i].name === 'psd_' + plotIndex) {
                 mainTrace = fig.data[i];
@@ -2484,76 +2569,72 @@
             }
         }
         
-        // Method 2: Fallback to index if available
-        if (!mainTrace && plot && plot.mainTraceIndex !== undefined) {
-            mainTrace = fig.data[plot.mainTraceIndex];
-        }
-        
         if (!mainTrace || !mainTrace.meta || !mainTrace.meta.veins_data) {
             console.log('No vein data available for plot ' + plotIndex);
-            console.log('mainTrace exists:', !!mainTrace);
-            if (mainTrace) {
-                console.log('meta exists:', !!mainTrace.meta);
-                if (mainTrace.meta) {
-                    console.log('veins_data exists:', !!mainTrace.meta.veins_data);
-                    console.log('veins_data content:', mainTrace.meta.veins_data);
-                }
-            }
             return;
         }
         
         var veinsData = mainTrace.meta.veins_data;
         var axisRef = getAxisReference(plotIndex);
-        
-        // CUSTOMIZE VEIN COLORS HERE
-        var veinColors = [
-            '#00ffff',  // Cyan
-            '#ffff00',  // Yellow  
-            '#ff00ff',  // Magenta
-            '#00ff00',  // Lime
-            '#ffa500',  // Orange
-            '#40e0d0'   // Turquoise
-        ];
-        
+        var veinColors = ['coral', 'yellow', 'magenta', 'lime', 'orange', 'teal'];
         var veinTraces = [];
         
-        console.log('Veins data found:', veinsData);
-        console.log('Number of veins:', veinsData.length);
+        // Get current PSD data and range
+        var currentPSD = currentScale === 'db' ? mainTrace.meta.db_psd : mainTrace.meta.linear_psd;
+        var psdMin = Math.min(...currentPSD);
+        var psdMax = Math.max(...currentPSD);
+        var psdRange = psdMax - psdMin;
         
         for (var i = 0; i < veinsData.length && i < veinColors.length; i++) {
             var vein = veinsData[i];
-            console.log(`Vein ${i}:`, vein);
             
             if (vein.freqs && vein.freqs.length > 0) {
-                console.log(`  Vein ${i} has ${vein.freqs.length} frequency points`);
+                var originalTimes = vein.times;
+                var timeMin = Math.min(...originalTimes);
+                var timeMax = Math.max(...originalTimes);
+                
+                // Apply EXACT same scaling as spectrogram in Python
+                var scaledTimes = originalTimes.map(function(t) {
+                    var normalizedTime = (t - timeMin) / (timeMax - timeMin);  // 0 to 1
+                    return psdMax - (psdRange * 0.5) + (normalizedTime * psdRange * 0.5);
+                });
+                
+                // Apply spectrogram view mode if in full mode
+                var finalTimes = scaledTimes;  // Default to the Python scaling
+                
+                if (spectrogramViewState.viewMode === 'full') {
+                    // If switching to full mode, expand to use full PSD range
+                    finalTimes = originalTimes.map(function(t) {
+                        var normalizedTime = (t - timeMin) / (timeMax - timeMin);
+                        return psdMin + (normalizedTime * psdRange);
+                    });
+                }
                 
                 veinTraces.push({
                     x: vein.freqs,
-                    y: vein.times,
+                    y: finalTimes,
                     mode: 'lines',
                     line: { 
                         color: veinColors[i], 
-                        width: 2.5,           // Make more visible
+                        width: 2.5,
                         dash: 'dash' 
                     },
                     name: 'vein_' + plotIndex + '_' + i,
                     showlegend: false,
                     xaxis: axisRef.x,
                     yaxis: axisRef.y,
-                    opacity: 0.9              // High opacity for visibility
+                    opacity: 0.9
                 });
-            } else {
-                console.log(`  Vein ${i} has no frequency data`);
             }
         }
         
         if (veinTraces.length > 0) {
             Plotly.addTraces(fig, veinTraces);
             console.log('Drew ' + veinTraces.length + ' spectral veins for plot ' + plotIndex);
-        } else {
-            console.log('No vein traces were created for plot ' + plotIndex);
         }
     }
+
+
 
     function removeTracesByName(namePattern) {
         var fig = document.getElementsByClassName('js-plotly-plot')[0];
@@ -2562,7 +2643,8 @@
         console.log('Looking for traces to remove with pattern:', namePattern);
         
         for (var i = 0; i < fig.data.length; i++) {
-            if (fig.data[i].name && fig.data[i].name.includes(namePattern)) {
+            // Use exact match for ridge/vein patterns, not just includes
+            if (fig.data[i].name && fig.data[i].name === namePattern) {
                 console.log('Found trace to remove:', fig.data[i].name);
                 tracesToRemove.push(i);
             }
@@ -2575,7 +2657,6 @@
             console.log('No traces found to remove for pattern:', namePattern);
         }
     }
-
 
     function toggleSpectralRidge() {
         const toggle = document.getElementById('ridgeToggle');

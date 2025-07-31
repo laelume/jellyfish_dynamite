@@ -25,6 +25,8 @@ class AnalysisService:
         
         return valid_files
     
+
+    
     def process_analysis(self, session_dir, files, params):
         """Main analysis processing"""
         start_time = time.time()

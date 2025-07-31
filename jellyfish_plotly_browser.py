@@ -11,13 +11,11 @@ from jinja2 import Template
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 from natsort import natsorted
 from scipy.signal import find_peaks
-import matplotlib
-from matplotlib.widgets import Button
+
 import json
 import librosa
 from pathlib import Path
@@ -39,7 +37,6 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 import json
 
-from pathlib import Path
 import importlib
 import sys
 
@@ -66,6 +63,54 @@ slicedir = Path('tranche/slices')
 all_slicedirs=jelfun.get_subdir_pathlist(slicedir) # 58: 2453 has fewest number of chirps. 70 directories total. 
 
 warnings.filterwarnings("ignore", message="n_fft=.* is too large for input signal of length=.*")
+
+
+
+def setup_matplotlib_backend():
+    """Smart matplotlib backend selection based on environment"""
+    import matplotlib
+    import sys
+    import os
+    
+    # Check if we're running in Flask/web environment
+    is_flask = any([
+        'flask' in sys.modules,
+        'werkzeug' in sys.modules,
+        os.environ.get('FLASK_ENV'),
+        os.environ.get('WERKZEUG_RUN_MAIN'),
+        'gunicorn' in sys.argv[0] if sys.argv else False
+    ])
+    
+    # Check if we're in a headless environment (no display)
+    is_headless = os.environ.get('DISPLAY') is None and os.name != 'nt'  # Not Windows
+    
+    if is_flask or is_headless:
+        # Use non-interactive backend for web/headless
+        matplotlib.use('Agg')
+        print("🌐 Using Agg backend (web/headless mode)")
+    else:
+        # Interactive mode - try to use best available backend
+        try:
+            import platform
+            if platform.system() == 'Darwin':  # macOS
+                try:
+                    matplotlib.use('macosx')
+                    print("🖥️  Using macOS backend (interactive mode)")
+                except:
+                    matplotlib.use('TkAgg')
+                    print("🖥️  Using TkAgg backend (interactive mode)")
+            else:  # Windows/Linux
+                matplotlib.use('TkAgg')
+                print("🖥️  Using TkAgg backend (interactive mode)")
+        except Exception as e:
+            print(f"⚠️  Backend selection failed: {e}, falling back to Agg")
+            matplotlib.use('Agg')
+
+# Call before importing pyplot
+setup_matplotlib_backend()
+import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib.widgets import Button
 
 
 
@@ -1483,12 +1528,17 @@ def select_audio_files(directory_path, file_patterns=None, file_indices=None,
 # ==================== MAIN ANALYSIS FUNCTIONS ====================
 
 def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5, 
-                           n_fft=1024, peak_fmin=100, peak_fmax=6000,
-                           plot_fmin=100, plot_fmax=6000,
-                           height_percentile=0.6, prominence_factor=0.05,
-                           min_width=0.6, methods=None, 
-                           selected_files=None, use_db_scale=True, 
-                           num_veins=6):
+                                # Legacy parameter for backward compatibility
+                                n_fft=None, hop_length=None, 
+                                # Dual-resolution parameters
+                                psd_n_fft=1024, spec_n_fft=512, 
+                                psd_hop_length=None, spec_hop_length=None, 
+                                peak_fmin=100, peak_fmax=6000,
+                                plot_fmin=100, plot_fmax=6000,
+                                height_percentile=0.6, prominence_factor=0.05,
+                                min_width=0.6, methods=None, 
+                                selected_files=None, use_db_scale=True, 
+                                num_veins=6):
     """
     Create an interactive PSD analysis for all audio files, using multiple methods.
     Each row displays a different audio file, and each column shows a different method.
@@ -1498,6 +1548,10 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
         max_cols: Maximum number of columns in each row (methods)
         max_pairs: Maximum number of pairs per spectrogram
         n_fft: FFT window size for PSD calculation
+        psd_n_fft: FFT size for PSD calculation (frequency resolution)
+        spec_n_fft: FFT size for spectrogram (should be <= psd_n_fft for best results)
+        psd_hop_length: Time step for PSD calculation
+        spec_hop_length: Time step for spectrogram
         peak_fmin: Minimum frequency for peak detection (Hz)
         peak_fmax: Maximum frequency for peak detection (Hz)
         plot_fmin: Minimum frequency to display in plot (Hz)
@@ -1512,6 +1566,7 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
     Returns:
         Tuple of (figure, plots, save_function)
     """
+
     # Get audio files
     if selected_files is None:
         audio_files = natsorted([f for f in os.listdir(audio_directory) if f.endswith('.wav')])
@@ -1524,6 +1579,22 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
         print("No .wav files found.")
         return None, [], None
     
+
+    # DEFAULT PARAMETER DICTIONARY
+    default_params = {
+        'psd_n_fft': psd_n_fft,
+        'psd_hop_length': psd_hop_length,
+        'spec_n_fft': spec_n_fft,
+        'spec_hop_length': spec_hop_length,
+        'plot_fmax': plot_fmax,
+        
+        # Legacy parameters for backward compatibility
+        'n_fft': psd_n_fft,  # Most methods expect this
+        'hop_length': psd_hop_length,  # Most methods expect this
+    }
+    print(f"Default parameters: {default_params}")
+
+
     # Set default plot range if not specified
     if plot_fmin is None:
         plot_fmin = peak_fmin
@@ -1532,38 +1603,83 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
     if methods is None:
         methods = ["FFT_DUAL", "Chirplet Zero"]  # Default to two common methods
     
-    # Create method lookup dict - using alllpsd functions where available
+
+    # METHOD FUNCTION DICTIONARY
     method_funcs = {
         "FFT_DUAL": lambda path: jelfun.calculate_psd_spectro(
             path, 
-            psd_n_fft=n_fft,      # Higher resolution for PSD
-            spec_n_fft=n_fft // 4,    # Lower resolution for spectrogram
-            use_dual_resolution=False,
+            psd_n_fft=default_params['psd_n_fft'],
+            psd_hop_length=default_params['psd_hop_length'],
+            spec_n_fft=default_params['spec_n_fft'],
+            spec_hop_length=default_params['spec_hop_length'],
+            use_dual_resolution=True,
             verbose=True
         ),
+        
         # "FFT_BASIC": lambda path: jelfun.calculate_psd_spectro(
-        #     path, n_fft=n_fft  # Keep original as backup
+        #     path, 
+        #     psd_n_fft=default_params['n_fft'],
+        #     psd_hop_length=default_params['hop_length'],
+        #     spec_n_fft=default_params['n_fft'],  # Same resolution for basic
+        #     spec_hop_length=default_params['hop_length'],  # Same resolution for basic
+        #     use_dual_resolution=False,  # Single resolution mode
+        #     verbose=True
         # ),
+        
         "CQT": lambda path: cqt_based_psd(
-            path, bins_per_octave=36, n_bins=150, fmin=600.0, fmax=plot_fmax * 1.2, hop_length=n_fft//4, n_fft=n_fft
+            path, 
+            bins_per_octave=36, 
+            n_bins=150, 
+            fmin=600, 
+            fmax=default_params['plot_fmax'] * 1.2, 
+            hop_length=default_params['hop_length'],
+            n_fft=default_params['n_fft']
         ),
+        
         "Wavelet": lambda path: wavelet_packet_psd(
-            path, wavelet='sym8', max_level=6, hop_length=n_fft//4, n_fft=n_fft
+            path, 
+            wavelet='sym8', 
+            max_level=6, 
+            hop_length=default_params['hop_length'],
+            n_fft=default_params['n_fft']
         ),
+        
         "Improved Wavelet": lambda path: improved_wavelet_packet_psd(
-            path, wavelet='sym8', max_level=6, hop_length=n_fft//4, n_fft=n_fft
+            path, 
+            wavelet='sym8', 
+            max_level=6, 
+            hop_length=default_params['hop_length'],
+            n_fft=default_params['n_fft']
         ),
+        
         "Stationary Wavelet": lambda path: stationary_wavelet_psd(
-            path, wavelet='sym8', max_level=4, n_fft=n_fft
+            path, 
+            wavelet='sym8', 
+            max_level=4, 
+            n_fft=default_params['n_fft']
         ),
+        
         "Chirplet": lambda path: chirplet_transform(
-            path, n_chirps=100, min_freq=20, max_freq=plot_fmax * 1.2, n_fft=n_fft
+            path, 
+            n_chirps=100, 
+            min_freq=20, 
+            max_freq=default_params['plot_fmax'] * 1.2, 
+            n_fft=default_params['n_fft']
         ),
+        
         "Chirplet Zero": lambda path: chirplet_transform_zero_padding(
-            path, n_chirps=100, min_freq=20, max_freq=plot_fmax * 1.2, n_fft=n_fft
+            path, 
+            n_chirps=100, 
+            min_freq=20, 
+            max_freq=default_params['plot_fmax'] * 1.2, 
+            n_fft=default_params['n_fft']
         ),
+        
         "Multi-Res": lambda path: multi_resolution_psd(
-            path, fft_sizes=[512, 1024, 2048, 4096], n_fft=n_fft, hop_length=n_fft // 4
+            path, 
+            fft_sizes=[512, 1024, 2048, 4096], 
+            n_fft=default_params['n_fft'], 
+            hop_length=default_params['hop_length']
         ),
     }
 
@@ -1704,14 +1820,14 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
     
     def save_callback(event):
         fig_path, data_path = save_figure_with_timestamp(fig, plots, 
-                                                        base_filename=f"psd_methods_comparison_{n_fft}", 
+                                                        base_filename=f"psd_methods_comparison_nfft{n_fft}", 
                                                         output_directory=f"{daily_dir}/jellyfish_dynamite")
         print(f"Plot saved successfully!")
     
     save_button.on_clicked(save_callback)
     
     # Create specific save function for this figure
-    def save_this_figure(base_filename=f"psd_methods_comparison_{n_fft}", output_directory=None):
+    def save_this_figure(base_filename=f"psd_methods_comparison_nfft{n_fft}", output_directory=None):
         return save_figure_with_timestamp(fig, plots, base_filename, output_directory)
     
     method_names_str = ", ".join(methods)
@@ -2058,6 +2174,9 @@ function toggleScale(plotIndex) {{
     Plotly.relayout(fig, layoutUpdate);
     
     console.log('Toggled to ' + plot.current_scale + ' scale');
+    
+    // CRITICAL: Redraw selected peaks with new scale
+    updatePlot(plotIndex);
 }}
 
 
@@ -2119,7 +2238,10 @@ function updatePlot(plotIndex) {{
             
             if (peakIdx >= 0) {{
                 selectedX.push(freq);
-                selectedY.push(plot.peak_powers[peakIdx]);
+
+                // selectedY.push(plot.peak_powers[peakIdx]);
+                selectedY.push(plot.current_scale === 'db' ? plot.peak_powers_db[peakIdx] : plot.peak_powers_linear[peakIdx]);
+
                 selectedText.push(freq.toFixed(0) + ' Hz');
             }}
         }}
@@ -2142,10 +2264,15 @@ function updatePlot(plotIndex) {{
     }}
     
     // Prepare pair traces in batch
-    var pairVerticalLines = {{ x: [], y: [], mode: 'lines', line: {{ color: 'gray', width: 1, dash: 'dash' }}, opacity: 0.7, name: 'vlines_' + plotIndex, showlegend: false, xaxis: xAxisRef, yaxis: yAxisRef }};
-    var yMin = Math.min(...plot.psd_db);
-    var yMax = Math.max(...plot.psd_db);
+    var pairVerticalLines = {{ x: [], y: [], mode: 'lines', line: {{ color: 'gray', width: 1, dash: 'dot' }}, opacity: 0.7, name: 'vlines_' + plotIndex, showlegend: false, xaxis: xAxisRef, yaxis: yAxisRef }};
     
+    //var yMin = Math.min(...plot.psd_db);
+    //var yMax = Math.max(...plot.psd_db);
+    var currentPSD = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
+    var yMin = Math.min(...currentPSD);
+    var yMax = Math.max(...currentPSD);
+
+
     // Add pairs with connecting lines and colored vertical lines
     for (var i = 0; i < plot.pairs.length; i++) {{
         var pair = plot.pairs[i];
@@ -2157,9 +2284,11 @@ function updatePlot(plotIndex) {{
         }});
         
         if (f0Idx >= 0 && f1Idx >= 0) {{
-            var f0Power = plot.peak_powers[f0Idx];
-            var f1Power = plot.peak_powers[f1Idx];
-            
+            //var f0Power = plot.peak_powers[f0Idx];
+            //var f1Power = plot.peak_powers[f1Idx];
+            var f0Power = plot.current_scale === 'db' ? plot.peak_powers_db[f0Idx] : plot.peak_powers_linear[f0Idx];
+            var f1Power = plot.current_scale === 'db' ? plot.peak_powers_db[f1Idx] : plot.peak_powers_linear[f1Idx];
+
             // Add to batch vertical lines
             pairVerticalLines.x.push(pair.f0, pair.f0, null, pair.f1, pair.f1, null);
             pairVerticalLines.y.push(yMin, yMax, null, yMin, yMax, null);
@@ -2569,7 +2698,7 @@ def save_jellyfish_jinja(template_vars, template_name, base_filename="psd_analys
 
 # PLOTLY TEMPLATE ... TEMPLOT??
 
-def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scale=True):
+def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scale=True, **kwargs):
     """Prepare template variables specifically for Plotly templates with dual scale support."""
 
     # Custom JSON encoder for NumPy types
@@ -2872,7 +3001,13 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         'USE_DB_SCALE': 'true' if use_db_scale else 'false',
         'N_ROWS': n_rows,
         'N_COLS': n_cols,
-        'TOTAL_PLOTS': len(plots)
+        'TOTAL_PLOTS': len(plots), 
+        
+        # Resolution Parameters
+        'PSD_N_FFT': kwargs.get('psd_n_fft', 1024),
+        'SPEC_N_FFT': kwargs.get('spec_n_fft', 512), 
+        'PSD_HOP_LENGTH': kwargs.get('psd_hop_length', 256),
+        'SPEC_HOP_LENGTH': kwargs.get('spec_hop_length', 128)
     }
 
 
@@ -2936,7 +3071,9 @@ def save_spectrogram_images(plots, output_directory):
     return spectrogram_paths
 
 
-def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_directory=None, methods=None, dir_name=None, use_db_scale=True, **kwargs):
+def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_directory=None, 
+                        methods=None, dir_name=None, 
+                        use_db_scale=True, **kwargs):
     """Convenience wrapper for saving Plotly plots using Jinja templates."""
     n_fft = kwargs.get('n_fft')
     nfft_suffix = f"_nfft{n_fft}" if n_fft else ""
@@ -2984,12 +3121,9 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
 
     # Use the Plotly template
     template_name = "jellyfish_dynamite_plotly.html"
-    #template_name = "jellyfish_dynamite_plotly_morning.html"
 
     # Call the agnostic Jinja function
     html_path = save_jellyfish_jinja(template_vars, template_name, base_filename, output_directory)
-
-
 
     # Save pair and graph data (existing code from original function)
     data_filename = f"{dir_name}_{base_filename}{nfft_suffix}_{jelfun.get_timestamp()}_pairdata.json"
@@ -3069,8 +3203,7 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
 
 
 
-# GEOLOGY VERSION
-
+# GEOLOGY MODS
 def main():
     import platform
 
@@ -3083,15 +3216,28 @@ def main():
             from IPython import get_ipython
             get_ipython().run_line_magic('matplotlib', 'notebook')
         except:
-            if platform.system() == 'Darwin':
+            if platform.system() == 'Darwin': #macos
                 matplotlib.use('Agg')
             else:
                 matplotlib.use('TkAgg')
                 plt.ion()
 
-    main_slicedir = all_slicedirs[68]
-    nfft = 1024
-    # More minimal testing for now: 
+    main_slicedir = all_slicedirs[68] # Update path as needed
+
+
+    # RESOLUTION SETTINGS
+    # Option 1: Legacy mode (simple)
+    # nfft = 2048  # Will set psd_n_fft=2048, spec_n_fft=1024
+    
+    # Option 2: Custom dual-resolution mode (comment out nfft above if using this)
+    psd_n_fft = 1024      # High frequency resolution for PSD/peaks
+    spec_n_fft = 512     # Moderate frequency resolution for spectrogram
+    
+    # If unspecified, hop_length is calculated based off nfft values
+    # psd_hop_length = 256  # Fine time steps for PSD
+    # spec_hop_length = 128 # Very fine time steps for smooth ridges/veins
+
+    # Minimal testing: 
     methods = ["FFT_DUAL", "CQT"]#, "Multi-Res", "Chirplet Zero"]
 
     selected_files = select_audio_files(
@@ -3099,12 +3245,21 @@ def main():
         range_start=0,
         range_end=None
     )
-   
+
+    # MATPLOTLIB PYTHON PLOTS
     fig, plots, _, dir_short_name = compare_methods_psd_analysis(
         audio_directory=main_slicedir,
         max_cols=len(methods), 
         max_pairs=10,
-        n_fft=nfft,
+
+        # Previous universal version: 
+        # n_fft=nfft,
+        # hop_length=hop_length,
+
+        # Custom dual-resolution: 
+        psd_n_fft=1024, spec_n_fft=512, 
+        # psd_hop_length=psd_hop_length,spec_hop_length=spec_hop_length,
+
         peak_fmin=100,
         peak_fmax=5000,
         plot_fmin=100,
@@ -3112,9 +3267,10 @@ def main():
         selected_files=selected_files,
         methods=methods,
         use_db_scale=False, 
-        num_veins=6
+        num_veins=7
     )
 
+    # HTML PLOTLY PLOTS
     if fig is not None:
         plt.show()
         html_path, data_path, graph_path = save_jellyfish_plotly(
@@ -3123,7 +3279,8 @@ def main():
             methods=methods,
             dir_name=dir_short_name,
             use_db_scale=False, 
-            n_fft=nfft, 
+            # n_fft=nfft, hop_length=hop_length,
+            psd_n_fft=psd_n_fft, spec_n_fft=spec_n_fft, 
             show_ridge=True, 
             show_veins=True
         )
