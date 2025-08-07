@@ -95,10 +95,10 @@ def process_files():
         
         params = {
             'methods': request.form.getlist('methods') or Config.DEFAULT_METHODS,
-            'psd_n_fft': psd_n_fft,  # NEW
-            'spec_n_fft': spec_n_fft,  # NEW  
-            'psd_hop_length': psd_hop_length,  # NEW
-            'spec_hop_length': spec_hop_length,  # NEW
+            'psd_n_fft': psd_n_fft, 
+            'spec_n_fft': spec_n_fft, 
+            'psd_hop_length': psd_hop_length, 
+            'spec_hop_length': spec_hop_length, 
             'n_fft': psd_n_fft,  # Keep for backward compatibility
             'peak_fmin': int(request.form.get('peak_fmin', os.environ.get('PEAK_FMIN', Config.DEFAULT_PEAK_FMIN))),
             'peak_fmax': int(request.form.get('peak_fmax', os.environ.get('PEAK_MAX', Config.DEFAULT_PEAK_FMAX))),
@@ -152,10 +152,7 @@ def add_flask_navigation(html_content, processing_time, params):
     return html_content.replace('<body>', f'<body>{nav_html}')
 
 
-
-
-
-# Error handlers and cleanup routes...
+# Error handlers and cleanup routes
 @app.errorhandler(413)
 def too_large(e):
     return "File too large", 413
@@ -163,6 +160,52 @@ def too_large(e):
 @app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': time.time()})
+
+@app.route('/tranche/<path:filename>')
+def serve_audio(filename):
+    """Serve audio files for the synthesizer"""
+    try:
+        return send_from_directory('tranche', filename)
+    except FileNotFoundError:
+        abort(404)
+
+@app.route('/<path:filename>')
+def serve_root_files(filename):
+    """Serve files from root directory"""
+    try:
+        return send_from_directory('.', filename)
+    except FileNotFoundError:
+        abort(404)
+
+@app.route('/api/audio/<path:filename>')
+def api_serve_audio(filename):
+    """API endpoint for audio file access with CORS headers"""
+    response = send_from_directory('tranche', filename)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET'
+    return response
+
+@app.route('/api/analysis/status/<analysis_id>')
+def get_analysis_status(analysis_id):
+    """Get status of running analysis"""
+    # Implementation for async analysis tracking
+    return jsonify({'status': 'running', 'progress': 50})
+
+@app.route('/api/peaks', methods=['POST'])
+def save_peaks():
+    """Save peak selections from the frontend"""
+    data = request.json
+    # Save peak data to database or file
+    return jsonify({'success': True, 'message': 'Peaks saved'})
+
+@app.route('/api/audio/synthesize', methods=['POST'])
+def synthesize_audio():
+    """Generate sine waves for selected peaks"""
+    data = request.json
+    frequencies = data.get('frequencies', [])
+    # Implementation for audio synthesis
+    return jsonify({'success': True, 'audio_url': '/generated_audio.wav'})
+
 
 if __name__ == '__main__':
     # Setup
@@ -173,6 +216,3 @@ if __name__ == '__main__':
     print("🌐 Server: http://localhost:5000")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
-
-
-

@@ -7,11 +7,11 @@ class Config:
     UPLOAD_FOLDER = 'temp_uploads'
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max file size
     
-    # Analysis defaults - CHANGED: FFT_DUAL as default
+    # Analysis Defaults
     DEFAULT_METHODS = ['FFT_DUAL']  # Only FFT_DUAL checked by default
     ALL_METHODS = ['FFT_DUAL', 'CQT', 'Multi-Res', 'Chirplet Zero']  # All available methods
     
-    # Resolution options - NEW
+    # Resolution Settings
     PSD_NFFT_OPTIONS = [256, 512, 1024, 2048, 4096, 8192]
     SPEC_NFFT_OPTIONS = [128, 256, 512, 1024, 2048, 4096]
     HOP_RATIO_OPTIONS = [2, 4, 6, 8]  # n_fft divided by these values
@@ -22,6 +22,11 @@ class Config:
     DEFAULT_PEAK_FMIN = 100
     DEFAULT_PEAK_FMAX = 6000
     
-    # Performance settings
+    # Spectral Features
+    DEFAULT_SHOW_RIDGE = True
+    DEFAULT_SHOW_VEINS = True
+    DEFAULT_NUM_VEINS = 6
+    
+    # Performance Settings
     SESSION_TIMEOUT = 3600  # 1 hour
     MAX_FILES_PER_SESSION = 100

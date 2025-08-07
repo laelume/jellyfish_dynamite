@@ -5,10 +5,11 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta charset="utf-8" />
-    <style>
 
+    <script src="https://cdn.jsdelivr.net/npm/soundtouch-js@0.1.30/dist/soundtouch.min.js"></script>
+
+    <style>
         /* CSS Styling */
-        
         .js-plotly-plot .plotly .nsewdrag {
             cursor: grab !important;
         }
@@ -373,7 +374,6 @@
             }
         }
 
-
         /* Data Table Styling */
         .data-table-container {
             position: fixed;
@@ -521,110 +521,226 @@
             }
         }
 
-
-
-    /* Spectrogram control group styling */
-    .spectrogram-controls {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        margin: 8px 0;
-        padding: 8px;
-        background: rgba(240, 248, 255, 0.3);
-        border-radius: 6px;
-        border: 1px solid rgba(52, 152, 219, 0.2);
-    }
-
-    .spectrogram-controls .control-group {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .checkbox-group {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-    }
-
-    .checkbox-item {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .checkbox-item input[type="checkbox"] {
-        width: 14px;
-        height: 14px;
-        accent-color: #3498db;
-    }
-
-    .checkbox-item label {
-        font-size: 9px;
-        color: #555;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-
-    .spectrogram-controls .toggle-label {
-        font-size: 10px;
-        color: #555;
-        margin-top: 4px;
-        font-weight: bold;
-    }
-
-    /* Dark mode spectrogram support */
-    @media (prefers-color-scheme: dark) {
+        /* Spectrogram control group styling */
         .spectrogram-controls {
-            background: rgba(42, 42, 42, 0.3) !important;
-            border-color: rgba(52, 152, 219, 0.4) !important;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(240, 248, 255, 0.3);
+            border-radius: 6px;
+            border: 1px solid rgba(52, 152, 219, 0.2);
         }
-        
-        .checkbox-item label,
-        .spectrogram-controls .toggle-label {
-            color: #e0e0e0 !important;
-        }
-        
-        .checkbox-item input[type="checkbox"] {
-            accent-color: #5dade2 !important;
-        }
-    }
 
-    /* Mobile responsive spectrogram stuff*/
-    @media (max-width: 768px) {
-        .spectrogram-controls {
+        .spectrogram-controls .control-group {
+            display: flex;
             flex-direction: column;
-            gap: 8px;
+            align-items: center;
         }
-        
+
         .checkbox-group {
-            justify-content: center;
+            display: flex;
+            gap: 8px;
+            align-items: center;
         }
-    }
 
-    /*Adding spectros as simple wallpaper*/
-   .subplot-background {
-    position: absolute;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    opacity: 0.5;
-    pointer-events: none;
-    z-index: 0
-    }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
 
-    .spectrogram-controls {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 1000;
-    } 
+        .checkbox-item input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            accent-color: #3498db;
+        }
 
+        .checkbox-item label {
+            font-size: 9px;
+            color: #555;
+            cursor: pointer;
+            white-space: nowrap;
+        }
 
-    
+        .spectrogram-controls .toggle-label {
+            font-size: 10px;
+            color: #555;
+            margin-top: 4px;
+            font-weight: bold;
+        }
+
+        /* Dark mode spectrogram support */
+        @media (prefers-color-scheme: dark) {
+            .spectrogram-controls {
+                background: rgba(42, 42, 42, 0.3) !important;
+                border-color: rgba(52, 152, 219, 0.4) !important;
+            }
+            
+            .checkbox-item label,
+            .spectrogram-controls .toggle-label {
+                color: #e0e0e0 !important;
+            }
+            
+            .checkbox-item input[type="checkbox"] {
+                accent-color: #5dade2 !important;
+            }
+        }
+
+        /* Mobile responsive spectrogram stuff*/
+        @media (max-width: 768px) {
+            .spectrogram-controls {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .checkbox-group {
+                justify-content: center;
+            }
+        }
+
+        /*Adding spectros as simple wallpaper*/
+        .subplot-background {
+            position: absolute;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: 0
+            }
+
+        .spectrogram-controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+        } 
+
+        /* Audio controls styling */
+        .audio-controls {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            z-index: 150;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 6px;
+            padding: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .play-button {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 10px;
+            padding: 3px 6px;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+            min-width: 30px;
+        }
+
+        .play-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .sine-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 8px;
+            color: #333;
+            background: rgba(52, 152, 219, 0.1);
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin: 1px 0;
+        }
+
+        .sine-checkbox input[type="checkbox"] {
+            width: 10px;
+            height: 10px;
+            accent-color: #3498db;
+        }
+
+        .sine-checkbox label {
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        /* Extended control panel styles */
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+        }
+
+        .control-row label {
+            font-size: 9px;
+            min-width: 12px;
+        }
+
+        .control-row input[type="checkbox"] {
+            width: 12px;
+            height: 12px;
+        }
+
+        .control-row input[type="range"] {
+            flex: 1;
+            height: 16px;
+        }
+
+        .gain-slider {
+            writing-mode: bt-lr; /* IE */
+            writing-mode: vertical-lr; /* Standard */
+            width: 16px;
+            height: 60px;
+            background: linear-gradient(to top, #e74c3c, #f39c12, #27ae60);
+            cursor: pointer; 
+            appearance: auto; 
+        }
+
+        .stretch-slider {
+            width: 60px;
+            cursor: pointer; 
+            appearance: auto; 
+        }
+
+        .stretch-value {
+            font-size: 8px;
+            color: #666;
+            min-width: 20px;
+        }
+
+        /* Dark mode audio controls */
+        @media (prefers-color-scheme: dark) {
+            .audio-controls {
+                background: rgba(42, 42, 42, 0.9) !important;
+            }
+            
+            .sine-checkbox {
+                color: #e0e0e0 !important;
+                background: rgba(52, 152, 219, 0.2) !important;
+            }
+            
+            .control-row {
+                color: #e0e0e0 !important;
+            }
+            
+            .stretch-value {
+                color: #ccc !important;
+            }
+        }
     </style>
-
 </head>
+
 <body>
     <div class="instructions">
         <h2>Jellyfish Dynamite (plotly): {{DIR_NAME}} - Dynamic Interactive Spectral Analysis</h2>
@@ -717,6 +833,7 @@
                     <li><button onclick="connectAllPeaks()">Connect All Selected Peaks</button></li>
                     <li><button onclick="showMatrixAnalysis()">Matrix View</button></li>
                     <li><button onclick="exportData()">Export JSON Data</button></li>
+                    <li><button onclick="stopAllAudio()" class="danger">🔇 Stop All Audio</button></li>
                 </ul>
             </div>
 
@@ -923,6 +1040,11 @@
     // Track current scale globally - Initialize from template
     let currentScale = {{USE_DB_SCALE}} === 'true' ? 'db' : 'linear';
 
+    // Audio source path from template - points to original audio file directory
+    // Allows browser to access audio files without copying them
+    const audioSourcePath = '{{AUDIO_SOURCE_PATH}}';
+    console.log('🎵 Audio source path:', audioSourcePath);
+
     const subplotTitles = {{SUBPLOT_TITLES}};
     
     // Spectrogram view initial defaults for global object
@@ -932,6 +1054,345 @@
         showRidge: true,
         showVeins: true
     };
+
+    // Audio Synthesizer Class
+    class AudioSynthesizer {
+        constructor() {
+            this.audioContext = null;
+            this.masterGain = null;
+            this.oscillators = new Map();
+            this.originalAudio = new Map();
+            this.audioElements = new Map(); 
+            this.sineWaveStates = new Map(); // Track which sine waves are active
+            this.activeSources = new Map(); // Track playing audio sources
+            this.initializeAudio();
+        }
+        
+        async initializeAudio() {
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.audioContext.createGain();
+                this.masterGain.connect(this.audioContext.destination);
+                this.masterGain.gain.value = 0.3;
+                console.log('🎵 SoundTouch audio system initialized');
+            } catch (error) {
+                console.error('Audio initialization failed:', error);
+            }
+        }
+            
+        async resumeContext() {
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+        }
+        
+        startSineWave(frequency, volume = 0.1) {
+            this.resumeContext();
+            
+            if (this.oscillators.has(frequency)) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+            
+            gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.05);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.masterGain);
+            oscillator.start();
+            
+            this.oscillators.set(frequency, { oscillator, gainNode });
+            this.sineWaveStates.set(frequency, true);
+            console.log(`🎶 Started sine wave at ${frequency.toFixed(1)} Hz`);
+        }
+        
+        stopSineWave(frequency) {
+            if (!this.oscillators.has(frequency)) return;
+            
+            const { oscillator, gainNode } = this.oscillators.get(frequency);
+            gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.05);
+            
+            setTimeout(() => {
+                try {
+                    oscillator.stop();
+                    this.oscillators.delete(frequency);
+                    this.sineWaveStates.set(frequency, false);
+                    console.log(`🔇 Stopped sine wave at ${frequency.toFixed(1)} Hz`);
+                } catch (e) {
+                    console.log('Oscillator already stopped');
+                }
+            }, 60);
+        }
+        
+        stopAllSineWaves() {
+            this.oscillators.forEach((_, frequency) => {
+                this.stopSineWave(frequency);
+            });
+            console.log('🔇 All sine waves stopped');
+        }
+
+        // Simplified audio loading using HTML5 Audio
+        async loadOriginalAudio(plotIndex, filename) {
+            console.log('🔍 Testing server directory listing...');
+            try {
+                const response = await fetch('/');
+                const html = await response.text();
+                console.log('Server root directory response:', response.status);
+                if (html.includes('tranche')) {
+                    console.log('✅ Server can see tranche directory');
+                } else {
+                    console.log('❌ Server cannot see tranche directory');
+                    console.log('First 500 chars of server response:', html.substring(0, 500));
+                }
+            } catch (e) {
+                console.log('❌ Failed to check server directory:', e);
+            }
+            try {
+                console.log(`🔍 COMPLETE AUDIO DEBUG for plot ${plotIndex}, filename: ${filename}`);
+                console.log(`  audioSourcePath value: "${audioSourcePath}"`);
+                console.log(`  audioSourcePath type: ${typeof audioSourcePath}`);
+                console.log(`  audioSourcePath length: ${audioSourcePath ? audioSourcePath.length : 'undefined'}`);
+                
+                const possiblePaths = [
+                    `/${audioSourcePath}/${filename}.wav`,
+                    `/${audioSourcePath}/${filename}.WAV`,
+                    `/${filename}`
+                ].filter(path => path !== '/.wav' && path !== '/.WAV');
+
+                console.log(`  Raw possiblePaths before filter:`, [
+                    `${audioSourcePath}/${filename}.wav`,
+                    `${audioSourcePath}/${filename}.WAV`,
+                    `${filename}.wav`,
+                ]);
+                
+                console.log(`  Filtered possiblePaths:`, possiblePaths);
+                
+                for (let i = 0; i < possiblePaths.length; i++) {
+                    console.log(`  Path ${i}: "${possiblePaths[i]}"`);
+                }
+
+                // DEBUG:
+                console.log(`🔍 AUDIO DEBUG for plot ${plotIndex}, filename: ${filename}`);
+                console.log(`  audioSourcePath: "${audioSourcePath}"`);
+                console.log(`  Trying paths:`, possiblePaths);
+                
+                // DEBUG: show each exact path being tried
+                possiblePaths.forEach((path, i) => {
+                    console.log(`  Path ${i}: "${path}"`);
+                });
+
+                // DEBUG: show what we expect to work
+                const expectedPath = `tranche/slices/2556/${filename}.wav`;
+                console.log(`  Expected working path: "${expectedPath}"`);
+
+                for (const audioPath of possiblePaths) {
+                    try {
+                        console.log(`  Attempting: ${audioPath}`);
+                        // Test with fetch first
+                        const testResponse = await fetch(audioPath, { method: 'HEAD' });
+                        console.log(`  Fetch test: ${audioPath} returned ${testResponse.status}`);
+                        if (testResponse.ok) {
+                            // Create both Audio element AND AudioBuffer
+                            const audio = new Audio(audioPath);
+                            audio.preload = 'auto';
+                            audio.volume = 0.7;
+                            
+                            await new Promise((resolve, reject) => {
+                                audio.addEventListener('canplaythrough', resolve, { once: true });
+                                audio.addEventListener('error', (e) => {
+                                    console.log(`  Audio error for ${audioPath}:`, e);
+                                    reject(e);
+                                }, { once: true });
+                                audio.load();
+                            });
+                            
+                            // ALSO create AudioBuffer for time-stretching
+                            const response = await fetch(audioPath);
+                            const arrayBuffer = await response.arrayBuffer();
+                            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                            
+                            this.audioElements.set(plotIndex, { 
+                                audio: audio,           // Keep for compatibility
+                                buffer: audioBuffer,    // Add for time-stretching
+                                path: audioPath 
+                            });
+                            console.log(`🎵 Loaded audio for plot ${plotIndex}: ${audioPath}`);
+                            return audio;
+                        }
+                    } catch (e) {
+                        console.log(`  Failed ${audioPath}:`, e);
+                        continue;
+                    }
+                }
+                throw new Error('No valid audio path found');
+            } catch (error) {
+                console.error(`Failed to load audio for plot ${plotIndex}:`, error);
+                return null;
+            }
+        }
+
+        // Play audio, adding time-stretching capability
+        async playOriginalAudio(plotIndex, options = {}) {
+            console.log(`🎵 playOriginalAudio called for plot ${plotIndex} with:`, options);
+
+            await this.resumeContext();
+            
+            const {
+                timeStretch = 1.0,
+                loop = false,
+                gain = 0.5
+            } = options;
+            
+            // Stop any currently playing audio for this plot
+            this.stopAudioForPlot(plotIndex);
+
+            if (!this.audioElements.has(plotIndex)) {  // Check audioElements
+                const plot = plotData[plotIndex];
+                if (plot && plot.filename) {
+                    const baseFilename = plot.filename.split(' (')[0];
+                    await this.loadOriginalAudio(plotIndex, baseFilename);
+                }
+            }
+
+            const audioData = this.audioElements.get(plotIndex);  // Get from audioElements
+            if (audioData && audioData.buffer) {
+                try {
+                    if (timeStretch === 1.0) {
+                        // No time-stretching needed, use direct AudioBuffer playback
+                        this.playDirectAudio(plotIndex, audioData.buffer, { loop, gain });
+                    } else {
+                        // Use SoundTouch for time-stretching
+                        this.playSoundTouchAudio(plotIndex, audioData.buffer, { timeStretch, loop, gain });
+                    }
+                    
+                    console.log(`▶️ Playing audio for plot ${plotIndex} (stretch: ${timeStretch}x)`);
+                } catch (e) {
+                    console.error('Audio play failed:', e);
+                }
+            }
+        }
+
+        playDirectAudio(plotIndex, audioBuffer, options) {
+            const { loop, gain } = options;
+            
+            const source = this.audioContext.createBufferSource();
+            const gainNode = this.audioContext.createGain();
+            
+            source.buffer = audioBuffer;
+            source.loop = loop;
+            gainNode.gain.value = gain;
+            
+            source.connect(gainNode);
+            gainNode.connect(this.masterGain);
+            
+            source.start();
+            
+            this.activeSources.set(plotIndex, { source, gainNode, type: 'direct' });
+            
+            source.addEventListener('ended', () => {
+                this.activeSources.delete(plotIndex);
+                console.log(`⏹️ Audio ended for plot ${plotIndex}`);
+            });
+        }
+
+        // In your AudioSynthesizer class, update the playSoundTouchAudio method:
+        playSoundTouchAudio(plotIndex, audioBuffer, options) {
+            const { timeStretch, loop, gain } = options;
+            
+            console.log(`🎛️ playSoundTouchAudio called: plot ${plotIndex}`);
+            console.log(`⏱️ Time stretch: ${timeStretch}, Loop: ${loop}, Gain: ${gain}`);
+            
+            const source = this.audioContext.createBufferSource();
+            const gainNode = this.audioContext.createGain();
+            
+            source.buffer = audioBuffer;
+            source.playbackRate.value = 1.0 / timeStretch; // Temporary - will replace with SoundTouch
+            source.loop = loop;
+            gainNode.gain.value = gain;
+            
+            console.log(`🔍 Source playbackRate set to: ${source.playbackRate.value}`);
+            console.log(`🔍 Source loop set to: ${source.loop}`);
+            console.log(`🔍 GainNode value set to: ${gainNode.gain.value}`);
+            
+            source.connect(gainNode);
+            gainNode.connect(this.masterGain);
+            
+            source.start();
+            
+            this.activeSources.set(plotIndex, { source, gainNode, type: 'soundtouch' });
+            
+            source.addEventListener('ended', () => {
+                this.activeSources.delete(plotIndex);
+                console.log(`⏹️ Time-stretched audio ended for plot ${plotIndex}`);
+            });
+        }
+        
+        stopAudioForPlot(plotIndex) {
+            if (this.activeSources.has(plotIndex)) {
+                const { source } = this.activeSources.get(plotIndex);
+                try {
+                    source.stop();
+                    this.activeSources.delete(plotIndex);
+                } catch (e) {
+                    console.log('Source already stopped');
+                    this.activeSources.delete(plotIndex); // Clean up anyway
+                }
+            }
+        }
+        
+        stopAllAudio() {
+            this.stopAllSineWaves();
+            
+            this.activeSources.forEach((audioData, plotIndex) => {
+                this.stopAudioForPlot(plotIndex);
+            });
+            
+            console.log('🔇 All audio stopped');
+        }
+        
+        // Control methods for UI
+
+        setGain(plotIndex, gainValue) {
+            console.log(`🔊 setGain called: plot ${plotIndex}, gain ${gainValue}`);
+            console.log(`🔍 Has active source:`, this.activeSources.has(plotIndex));
+            
+            if (this.activeSources.has(plotIndex)) {
+                const { gainNode } = this.activeSources.get(plotIndex);
+                console.log(`🔍 GainNode exists:`, !!gainNode);
+                console.log(`🔍 Current gain:`, gainNode.gain.value);
+                
+                gainNode.gain.value = gainValue;
+                console.log(`✅ Set gain to:`, gainNode.gain.value);
+            } else {
+                console.log(`❌ No active source for plot ${plotIndex}`);
+            }
+        }
+        
+
+        setLoop(plotIndex, shouldLoop) {
+            console.log(`🔁 setLoop called: plot ${plotIndex}, loop ${shouldLoop}`);
+            console.log(`🔍 Has active source:`, this.activeSources.has(plotIndex));
+            
+            if (this.activeSources.has(plotIndex)) {
+                const { source } = this.activeSources.get(plotIndex);
+                console.log(`🔍 Source exists:`, !!source);
+                console.log(`🔍 Current loop:`, source.loop);
+                
+                source.loop = shouldLoop;
+                console.log(`✅ Set loop to:`, source.loop);
+            } else {
+                console.log(`❌ No active source for plot ${plotIndex}`);
+            }
+        }
+    }
+    
+    // Initialize global audio synthesizer
+    var audioSynth = new AudioSynthesizer();
+
+
 
 
     function initializeScaleToggle() {
@@ -1114,9 +1575,46 @@
         });
     }
 
+
+
+    // function extractFilenameFromTitle(layout, plotIndex) {
+    //     const titleKey = plotIndex === 0 ? 'title' : `title${plotIndex + 1}`;
+    //     return layout[titleKey]?.text || `Plot ${plotIndex + 1}`;
+    // }
+
+
     function extractFilenameFromTitle(layout, plotIndex) {
+        // Subplot titles in Plotly are stored in layout.annotations, not as separate title properties
+        if (layout.annotations && layout.annotations.length > 0) {
+            // Look for the annotation that corresponds to this subplot
+            // Subplot titles are typically the first few annotations in the array
+            if (plotIndex < layout.annotations.length) {
+                const annotation = layout.annotations[plotIndex];
+                if (annotation && annotation.text) {
+                    console.log(`Found subplot title for plot ${plotIndex}: ${annotation.text}`);
+                    return annotation.text;
+                }
+            }
+            
+            // Alternative: search through all annotations for subplot titles
+            // Subplot title annotations usually have specific properties
+            for (let i = 0; i < layout.annotations.length; i++) {
+                const ann = layout.annotations[i];
+                // Subplot titles typically have showarrow: false and are positioned at the top
+                if (ann && ann.text && ann.showarrow === false && ann.yref === 'paper' && ann.y > 0.9) {
+                    if (i === plotIndex) {
+                        console.log(`Found subplot title via search for plot ${plotIndex}: ${ann.text}`);
+                        return ann.text;
+                    }
+                }
+            }
+        }
+        
+        // Fallback to original method
         const titleKey = plotIndex === 0 ? 'title' : `title${plotIndex + 1}`;
-        return layout[titleKey]?.text || `Plot ${plotIndex + 1}`;
+        const fallbackTitle = layout[titleKey]?.text || `Plot ${plotIndex + 1}`;
+        console.log(`Using fallback title for plot ${plotIndex}: ${fallbackTitle}`);
+        return fallbackTitle;
     }
 
     function setupEventListeners() {
@@ -1419,6 +1917,9 @@
                 break;
             case 'f': // f for flow
                 toggleSpectralVeins();
+                break;
+            case 'x': // x for stop audio
+                stopAllAudio();
                 break;
         }
     }
@@ -2058,6 +2559,9 @@
         // Update annotations for ratio display
         updateRatioAnnotations(plotIndex);
         
+        // Update audio controls when display updates
+        updateAudioControlsForPlot(plotIndex);
+
         console.log(`[${Date.now()}] updateDisplay END for plot ${plotIndex}`);
     }
 
@@ -2381,7 +2885,15 @@
         plotData.forEach((plot, plotIndex) => {
             updateDisplay(plotIndex);
         });
-        
+
+        // Update audio controls for all plots
+        plotData.forEach((plot, plotIndex) => {
+            updateAudioControlsForPlot(plotIndex);
+        });
+
+
+
+
         updateStatusDisplay(`Switched to ${isLinear ? 'linear' : 'dB'} scale`);
         updateDataTable();
     }
@@ -2689,10 +3201,309 @@
     }
 
 
+    // Audio control functions
+    function toggleSineWave(plotIndex, frequency, enabled) {
+        if (enabled) {
+            audioSynth.startSineWave(frequency, 0.1);
+            updateStatusDisplay(`🎶 Started sine wave: ${frequency.toFixed(1)} Hz`);
+        } else {
+            audioSynth.stopSineWave(frequency);
+            updateStatusDisplay(`🔇 Stopped sine wave: ${frequency.toFixed(1)} Hz`);
+        }
+    }
+
+    function playOriginalAudio(plotIndex) {
+        audioSynth.playOriginalAudio(plotIndex);
+        const plot = plotData[plotIndex];
+        const filename = plot ? plot.filename : `Plot ${plotIndex}`;
+        updateStatusDisplay(`▶️ Playing original audio: ${filename}`);
+    }
+
+    // function stopAllAudio() {
+    //     audioSynth.stopAllAudio();
+    //     updateStatusDisplay('🔇 All audio stopped');
+    // }
 
 
+    function stopAllAudio() {
+        console.log('🔇 stopAllAudio - NUCLEAR OPTION');
+        
+        try {
+            // 1. NUCLEAR: Completely recreate the audio synthesizer
+            const oldAudioSynth = audioSynth;
+            
+            // Stop everything on the old synthesizer
+            if (oldAudioSynth.activeSources) {
+                oldAudioSynth.activeSources.forEach((audioData, plotIndex) => {
+                    try {
+                        const { source } = audioData;
+                        if (source) {
+                            source.loop = false;
+                            source.stop();
+                        }
+                    } catch (e) {
+                        console.log(`Source ${plotIndex} stop error:`, e);
+                    }
+                });
+                oldAudioSynth.activeSources.clear();
+            }
+            
+            // Stop sine waves
+            oldAudioSynth.stopAllSineWaves();
+            
+            // 2. NUCLEAR: Close the entire audio context
+            if (oldAudioSynth.audioContext) {
+                oldAudioSynth.audioContext.close();
+            }
+            
+            // 3. Create a completely new audio synthesizer
+            audioSynth = new AudioSynthesizer();
+            
+            // 4. Stop any HTML5 audio
+            const audioElements = document.querySelectorAll('audio');
+            audioElements.forEach(audio => {
+                audio.loop = false;
+                audio.pause();
+                audio.currentTime = 0;
+            });
+            
+            console.log('✅ NUCLEAR AUDIO DESTRUCTION completed - new synthesizer created');
+            updateStatusDisplay('🔇 💥 NUCLEAR AUDIO STOP - completely destroyed and recreated audio system');
+            
+        } catch (error) {
+            console.error('❌ Error in nuclear audio destruction:', error);
+            updateStatusDisplay('❌ Nuclear option failed - see console');
+        }
+    }
+
+    function createAudioControls(plotIndex) {
+        const plot = plotData[plotIndex];
+        if (!plot) return '';
+        
+        let controlsHTML = `<div class="audio-controls" id="audioControls_${plotIndex}">`;
+        
+        // Play button for original audio
+        controlsHTML += `<button class="play-button" onclick="playOriginalAudio(${plotIndex})" title="Play original audio">▶️</button>`;
+        
+        // Sine wave checkboxes for selected peaks
+        const selectedPeaks = interactionState.selectedPeaks.get(plotIndex);
+        if (selectedPeaks && selectedPeaks.size > 0) {
+            Array.from(selectedPeaks).forEach(frequency => {
+                const checkboxId = `sine_${plotIndex}_${frequency.toFixed(1).replace('.', '_')}`;
+                controlsHTML += `
+                    <div class="sine-checkbox">
+                        <input type="checkbox" id="${checkboxId}" 
+                            onchange="toggleSineWave(${plotIndex}, ${frequency}, this.checked)">
+                        <label for="${checkboxId}">${frequency.toFixed(0)}Hz</label>
+                    </div>`;
+            });
+        }
+        
+        controlsHTML += '</div>';
+        return controlsHTML;
+    }
+
+
+    function updateAudioControlsForPlot(plotIndex) {
+        // Remove existing audio controls for this plot
+        const existingControls = document.getElementById(`audioControlPanel_${plotIndex}`);
+        if (existingControls) {
+            existingControls.remove();
+        }
+        
+        const plotDiv = document.getElementById('{{PLOT_ID}}');
+        if (!plotDiv) {
+            console.log(`❌ Could not find plot div`);
+            return;
+        }
+        
+        // Create control panel HTML
+        const controlsHTML = createAudioControlPanel(plotIndex);
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = controlsHTML;
+        const controlsElement = tempDiv.firstElementChild;
+        
+        if (!controlsElement) {
+            console.log(`❌ controlsElement is null/undefined!`);
+            return;
+        }
+        
+        // Position relative to subplot - BACK TO ORIGINAL
+        const plotRect = plotDiv.getBoundingClientRect();
+        const domain = getSubplotDomain(plotIndex);
+        
+        controlsElement.style.position = 'absolute';  // Back to absolute
+        controlsElement.style.left = `${domain.x[1] * plotRect.width - 100}px`;
+        controlsElement.style.top = `${(1 - domain.y[1]) * plotRect.height + 10}px`;
+        controlsElement.style.zIndex = '9999';
+        
+        // PREVENT PLOT EVENTS on this element
+        controlsElement.addEventListener('mousedown', function(e) {
+            e.stopPropagation();
+        });
+        controlsElement.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        controlsElement.addEventListener('contextmenu', function(e) {
+            e.stopPropagation();
+        });
+        
+        // Append to plotDiv - ORIGINAL APPROACH
+        plotDiv.appendChild(controlsElement);
+        
+        // Add sine wave checkboxes for selected peaks
+        addSineWaveControls(plotIndex);
+    }
+
+
+    function addSineWaveControls(plotIndex) {
+        const controlPanel = document.getElementById(`audioControlPanel_${plotIndex}`);
+        const selectedPeaks = interactionState.selectedPeaks.get(plotIndex);
+        
+        if (controlPanel && selectedPeaks && selectedPeaks.size > 0) {
+            Array.from(selectedPeaks).forEach(frequency => {
+                const checkboxId = `sine_${plotIndex}_${frequency.toFixed(1).replace('.', '_')}`;
+                const sineControlHTML = `
+                    <div class="sine-checkbox">
+                        <input type="checkbox" id="${checkboxId}" 
+                            onchange="toggleSineWave(${plotIndex}, ${frequency}, this.checked)">
+                        <label for="${checkboxId}">${frequency.toFixed(0)}Hz</label>
+                    </div>`;
+                
+                controlPanel.insertAdjacentHTML('beforeend', sineControlHTML);
+            });
+        }
+    }
+
+
+    function createAudioControlPanel(plotIndex) {
+        const plot = plotData[plotIndex];
+        if (!plot) return '';
+        
+        return `
+        <div class="audio-controls" id="audioControlPanel_${plotIndex}">
+            <div style="display: flex; gap: 2px;">
+                <button class="play-button" onclick="playAudioWithControls(${plotIndex})">▶️</button>
+                <button class="play-button" onclick="stopAudioForPlot(${plotIndex})" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">⏹️</button>
+            </div>
+            
+            <div class="control-row">
+                <label>🔁</label>
+                <input type="checkbox" id="loop_${plotIndex}" onchange="updateAudioLoop(${plotIndex})">
+            </div>
+            
+            <div class="control-row">
+                <label>🔊</label>
+                <input type="range" class="gain-slider" id="gain_${plotIndex}" 
+                    min="0" max="2" step="0.1" value="0.7" 
+                    onchange="updateAudioGain(${plotIndex}, this.value)"
+                    orient="vertical">
+            </div>
+            
+            <div class="control-row">
+                <label>⏱️</label>
+                <input type="range" class="stretch-slider" id="stretch_${plotIndex}" 
+                    min="0.5" max="2.0" step="0.1" value="1.0"
+                    onchange="updateTimeStretch(${plotIndex}, this.value)">
+                <span class="stretch-value" id="stretchValue_${plotIndex}">1.0x</span>
+            </div>
+        </div>`;
+    }
+
+    function playAudioWithControls(plotIndex) {
+        const loopCheckbox = document.getElementById(`loop_${plotIndex}`);
+        const gainSlider = document.getElementById(`gain_${plotIndex}`);
+        const stretchSlider = document.getElementById(`stretch_${plotIndex}`);
+        
+        // Make sure elements exist before reading values
+        const options = {
+            timeStretch: stretchSlider ? parseFloat(stretchSlider.value) : 1.0,
+            loop: loopCheckbox ? loopCheckbox.checked : false,
+            gain: gainSlider ? parseFloat(gainSlider.value) : 0.7
+        };
+        
+        console.log(`🎵 Playing with options:`, options);
+        audioSynth.playOriginalAudio(plotIndex, options);
+        updateStatusDisplay(`▶️ Playing: ${options.timeStretch}x speed, ${options.gain} gain, loop: ${options.loop}`);
+    }
+
+    function updateAudioLoop(plotIndex) {
+        const loopCheckbox = document.getElementById(`loop_${plotIndex}`);
+        const isLooping = loopCheckbox.checked;
+        
+        // If audio is currently playing, restart it with the new loop setting
+        if (audioSynth.activeSources.has(plotIndex)) {
+            console.log(`🔄 Restarting audio for plot ${plotIndex} with loop: ${isLooping}`);
+            playAudioWithControls(plotIndex); // This will stop current and restart with new settings
+        }
+    }
+
+
+
+    function updateAudioGain(plotIndex, gainValue, event) {
+        if (event) {
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+        }
+        console.log(`🔊 updateAudioGain called with:`, plotIndex, gainValue);
+        
+        // Try real-time gain change first
+        if (audioSynth.activeSources.has(plotIndex)) {
+            const { gainNode } = audioSynth.activeSources.get(plotIndex);
+            if (gainNode && gainNode.gain) {
+                gainNode.gain.value = parseFloat(gainValue);
+                console.log(`✅ Real-time gain changed to: ${gainValue}`);
+                return; // Success - don't restart audio
+            }
+        }
+        console.log(`ℹ️ No active audio - gain will be used on next play`);
+    }
+
+    function updateTimeStretch(plotIndex, stretchValue, event) {
+        if (event) {
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+        }
+        console.log(`⏱️ updateTimeStretch called with:`, plotIndex, stretchValue);
+        
+        const stretchDisplay = document.getElementById(`stretchValue_${plotIndex}`);
+        if (stretchDisplay) {
+            stretchDisplay.textContent = stretchValue + 'x';
+        }
+        
+        // Only restart if audio is currently playing AND stretch value actually changed
+        if (audioSynth.activeSources.has(plotIndex)) {
+            console.log(`🔄 Audio is playing - need to restart for time stretch`);
+            
+            // Get current audio state
+            const wasLooping = document.getElementById(`loop_${plotIndex}`).checked;
+            
+            // Stop current audio
+            audioSynth.stopAudioForPlot(plotIndex);
+            
+            // Restart immediately with new settings
+            const options = {
+                timeStretch: parseFloat(stretchValue),
+                loop: wasLooping,
+                gain: parseFloat(document.getElementById(`gain_${plotIndex}`).value)
+            };
+            
+            console.log(`🔄 Restarting with options:`, options);
+            audioSynth.playOriginalAudio(plotIndex, options);
+        } else {
+            console.log(`ℹ️ No active audio - stretch value stored for next play`);
+        }
+    }
 
     
+    function stopAudioForPlot(plotIndex) {
+        audioSynth.stopAudioForPlot(plotIndex);
+        updateStatusDisplay(`🛑 Stopped audio for plot ${plotIndex + 1}`);
+    }
+
+
+
     // Data Table Dynamic Resizing
     function resizeDataTable() {
         const plotDiv = document.getElementById('{{PLOT_ID}}');

@@ -5,17 +5,13 @@
 # Combines multiple spectral analysis methods with interactive visualization
 # Uses jellyfush_dynamite html as the format for the browser-based plotting
 
-from jellyfish_dynamite import save_jellyfish_template
-
 from jinja2 import Template
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
 import numpy as np
 import os
 from natsort import natsorted
 from scipy.signal import find_peaks
-
 import json
 import librosa
 from pathlib import Path
@@ -28,7 +24,7 @@ import networkx as nx
 import time
 from datetime import datetime
 import webbrowser
-
+import textwrap
 from bokeh.plotting import figure
 from bokeh.layouts import gridplot
 from bokeh.models import ColumnDataSource, HoverTool, TapTool, CustomJS
@@ -36,13 +32,10 @@ from bokeh.io import output_file, save, show
 from bokeh.embed import file_html
 from bokeh.resources import CDN
 import json
-
 import importlib
 import sys
 
-#import all_functions_psd_rebuilt as alllpsd
-#importlib.reload(alllpsd)
-
+from jellyfish_dynamite import save_jellyfish_template
 import jelly_funcs as jelfun
 importlib.reload(jelfun)
 
@@ -50,21 +43,12 @@ importlib.reload(jelfun)
 slicedir = Path('tranche/slices')
 all_slicedirs=jelfun.get_subdir_pathlist(slicedir) 
 
-mkdd = jelfun.make_daily_directory
-daily_dir = mkdd()
-daily_dir
-
+daily_dir = jelfun.make_daily_directory()
 thisfile='jellyfish_super_scratch'
 parent_dir=os.path.join(daily_dir, thisfile)
 os.makedirs(parent_dir, exist_ok=True)
-parent_dir
-
-slicedir = Path('tranche/slices')
-all_slicedirs=jelfun.get_subdir_pathlist(slicedir) # 58: 2453 has fewest number of chirps. 70 directories total. 
 
 warnings.filterwarnings("ignore", message="n_fft=.* is too large for input signal of length=.*")
-
-
 
 def setup_matplotlib_backend():
     """Smart matplotlib backend selection based on environment"""
@@ -111,8 +95,6 @@ setup_matplotlib_backend()
 import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.widgets import Button
-
-
 
 
 
@@ -419,8 +401,6 @@ def stationary_wavelet_psd(audio_path, wavelet='sym8', max_level=6, n_fft=2048):
     return out_freqs, out_psd
 
 
-
-
 # ==================== SPECTRAL RIDGE DETECTION ====================
 
 def find_max_energy_ridge(spectrogram, frequencies, times):
@@ -452,7 +432,6 @@ def plot_spectrogram_with_ridge(frequencies, times, spectrogram, show_ridge=True
     plt.colorbar(im, ax=ax, label='Power (dB)')
     
     return fig, ax
-
 
 def find_spectral_veins(spectrogram, frequencies, times, num_veins=6, freq_window=50):
     """Find veins by tracking bright regions in specific frequency bands."""
@@ -503,7 +482,6 @@ def find_spectral_veins(spectrogram, frequencies, times, num_veins=6, freq_windo
         })
     
     return veins
-
 
 def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=True, show_multi_veins=True, num_veins=5):
     """Plot spectrogram with optional vein overlays."""
@@ -562,9 +540,6 @@ def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=
     ax.set_ylabel('Time (s)')
     plt.colorbar(im, ax=ax, label='Power (dB)')
     return fig, ax
-
-
-
 
 
 
@@ -1525,6 +1500,7 @@ def select_audio_files(directory_path, file_patterns=None, file_indices=None,
     
     return selected
 
+
 # ==================== MAIN ANALYSIS FUNCTIONS ====================
 
 def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5, 
@@ -1845,7 +1821,6 @@ def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5,
     return fig, plots, save_this_figure, dir_short_name
 
 
-
 # ==================== HTML EXPORT FUNCTIONS ====================
 
 def create_interactive_html_plots(fig, plots, base_filename="psd_analysis", output_directory=None):
@@ -1977,504 +1952,484 @@ def create_interactive_html_plots(fig, plots, base_filename="psd_analysis", outp
     )
     
     # Create working JavaScript for interactivity with full visual features
-    js_code = f"""
+    js_code = textwrap.dedent(f"""
+        <script>
+        var plotData = {json.dumps(plot_data, cls=NumpyEncoder)};
+        var lastClickTime = 0;
+        var doubleClickTime = 0;
 
-<script>
-var plotData = {json.dumps(plot_data, cls=NumpyEncoder)};
-var lastClickTime = 0;
-var doubleClickTime = 0;
-
-function findNearestPeak(plotIndex, clickX) {{
-    var plot = plotData[plotIndex];
-    var peaks = plot.peak_freqs;
-    var tolerance = plot.click_tolerance;
-    var minDist = Infinity;
-    var nearestIdx = -1;
-    
-    for (var i = 0; i < peaks.length; i++) {{
-        var dist = Math.abs(peaks[i] - clickX);
-        if (dist < minDist && dist < tolerance) {{
-            minDist = dist;
-            nearestIdx = i;
+        function selectPeak(plotIndex, peakIdx) {{
+            var plot = plotData[plotIndex];
+            var freq = plot.peak_freqs[peakIdx];
+            
+            if (plot.selected_peaks.indexOf(freq) === -1) {{
+                plot.selected_peaks.push(freq);
+                console.log('Selected peak at ' + freq.toFixed(1) + ' Hz');
+                updatePlot(plotIndex);
+            }}
         }}
-    }}
-    return nearestIdx >= 0 ? nearestIdx : null;
-}}
 
-function selectPeak(plotIndex, peakIdx) {{
-    var plot = plotData[plotIndex];
-    var freq = plot.peak_freqs[peakIdx];
-    
-    if (plot.selected_peaks.indexOf(freq) === -1) {{
-        plot.selected_peaks.push(freq);
-        console.log('Selected peak at ' + freq.toFixed(1) + ' Hz');
-        updatePlot(plotIndex);
-    }}
-}}
-
-function removePeak(plotIndex, peakIdx) {{
-    var plot = plotData[plotIndex];
-    var freq = plot.peak_freqs[peakIdx];
-    
-    // Remove from selected peaks
-    var idx = plot.selected_peaks.indexOf(freq);
-    if (idx !== -1) {{
-        plot.selected_peaks.splice(idx, 1);
-    }}
-    
-    // Remove pairs containing this frequency
-    plot.pairs = plot.pairs.filter(function(pair) {{
-        return Math.abs(pair.f0 - freq) >= plot.click_tolerance && 
-            Math.abs(pair.f1 - freq) >= plot.click_tolerance;
-    }});
-    
-    console.log('Removed peak at ' + freq.toFixed(1) + ' Hz');
-    updatePlot(plotIndex);
-}}
-
-function createPair(plotIndex) {{
-    var plot = plotData[plotIndex];
-    
-    if (plot.selected_peaks.length >= 2 && plot.pairs.length < plot.max_pairs) {{
-        var f1 = plot.selected_peaks[plot.selected_peaks.length - 2];
-        var f2 = plot.selected_peaks[plot.selected_peaks.length - 1];
-        var f0 = Math.min(f1, f2);
-        var f1_sorted = Math.max(f1, f2);
-        var color = plot.colors[plot.pairs.length % plot.colors.length];
-        
-        plot.pairs.push({{
-            f0: f0,
-            f1: f1_sorted,
-            color: color
-        }});
-        
-        // Remove from selected
-        plot.selected_peaks = plot.selected_peaks.filter(function(peak) {{
-            return Math.abs(peak - f0) >= plot.click_tolerance && 
-                Math.abs(peak - f1_sorted) >= plot.click_tolerance;
-        }});
-        
-        console.log('Created pair: ' + f0.toFixed(1) + ' Hz and ' + f1_sorted.toFixed(1) + ' Hz, ratio: ' + (f1_sorted/f0).toFixed(3));
-        updatePlot(plotIndex);
-    }}
-}}
-
-function clearSelections(plotIndex) {{
-    plotData[plotIndex].selected_peaks = [];
-    updatePlot(plotIndex);
-}}
-
-function resetAll(plotIndex) {{
-    plotData[plotIndex].selected_peaks = [];
-    plotData[plotIndex].pairs = [];
-    console.log('Reset all for plot ' + plotIndex);
-    updatePlot(plotIndex);
-}}
-
-function connectAll(plotIndex) {{
-    var plot = plotData[plotIndex];
-    
-    // Get all nodes that should be in the fully connected graph:
-    // 1. Currently selected peaks 
-    // 2. Peaks that are already in existing pairs
-    var allNodes = new Set();
-    
-    // Add currently selected peaks
-    for (var i = 0; i < plot.selected_peaks.length; i++) {{
-        allNodes.add(plot.selected_peaks[i]);
-    }}
-    
-    // Add peaks from existing pairs
-    for (var i = 0; i < plot.pairs.length; i++) {{
-        allNodes.add(plot.pairs[i].f0);
-        allNodes.add(plot.pairs[i].f1);
-    }}
-    
-    var nodes = Array.from(allNodes).sort(function(a, b) {{ return a - b; }});
-    
-    if (nodes.length < 2) {{
-        console.log('Need at least 2 points to connect');
-        return;
-    }}
-    
-    console.log('Creating fully connected graph with ' + nodes.length + ' nodes: ' + nodes.map(n => n.toFixed(1)).join(', '));
-    
-    // Create pairs for all combinations that don't already exist
-    var existingPairSet = new Set();
-    for (var i = 0; i < plot.pairs.length; i++) {{
-        var pair = plot.pairs[i];
-        var key1 = pair.f0 + '-' + pair.f1;
-        var key2 = pair.f1 + '-' + pair.f0;
-        existingPairSet.add(key1);
-        existingPairSet.add(key2);
-    }}
-    
-    var newPairsAdded = 0;
-    for (var i = 0; i < nodes.length; i++) {{
-        for (var j = i + 1; j < nodes.length; j++) {{
-            if (plot.pairs.length >= plot.max_pairs) {{
-                console.log('Reached maximum pairs limit');
-                break;
+        function removePeak(plotIndex, peakIdx) {{
+            var plot = plotData[plotIndex];
+            var freq = plot.peak_freqs[peakIdx];
+            
+            // Remove from selected peaks
+            var idx = plot.selected_peaks.indexOf(freq);
+            if (idx !== -1) {{
+                plot.selected_peaks.splice(idx, 1);
             }}
             
-            var f0 = Math.min(nodes[i], nodes[j]);
-            var f1 = Math.max(nodes[i], nodes[j]);
-            var pairKey = f0 + '-' + f1;
+            // Remove pairs containing this frequency
+            plot.pairs = plot.pairs.filter(function(pair) {{
+                return Math.abs(pair.f0 - freq) >= plot.click_tolerance && 
+                    Math.abs(pair.f1 - freq) >= plot.click_tolerance;
+            }});
             
-            // Only add if this pair doesn't already exist
-            if (!existingPairSet.has(pairKey)) {{
+            console.log('Removed peak at ' + freq.toFixed(1) + ' Hz');
+            updatePlot(plotIndex);
+        }}
+
+        function createPair(plotIndex) {{
+            var plot = plotData[plotIndex];
+            
+            if (plot.selected_peaks.length >= 2 && plot.pairs.length < plot.max_pairs) {{
+                var f1 = plot.selected_peaks[plot.selected_peaks.length - 2];
+                var f2 = plot.selected_peaks[plot.selected_peaks.length - 1];
+                var f0 = Math.min(f1, f2);
+                var f1_sorted = Math.max(f1, f2);
                 var color = plot.colors[plot.pairs.length % plot.colors.length];
                 
                 plot.pairs.push({{
                     f0: f0,
-                    f1: f1,
+                    f1: f1_sorted,
                     color: color
                 }});
                 
-                existingPairSet.add(pairKey);
-                existingPairSet.add(f1 + '-' + f0);
-                newPairsAdded++;
+                // Remove from selected
+                plot.selected_peaks = plot.selected_peaks.filter(function(peak) {{
+                    return Math.abs(peak - f0) >= plot.click_tolerance && 
+                        Math.abs(peak - f1_sorted) >= plot.click_tolerance;
+                }});
+                
+                console.log('Created pair: ' + f0.toFixed(1) + ' Hz and ' + f1_sorted.toFixed(1) + ' Hz, ratio: ' + (f1_sorted/f0).toFixed(3));
+                updatePlot(plotIndex);
             }}
         }}
-        if (plot.pairs.length >= plot.max_pairs) break;
-    }}
-    
-    // DON'T clear selected peaks - keep them for potential future operations
-    // plot.selected_peaks = [];  // REMOVED THIS LINE
-    
-    console.log('Added ' + newPairsAdded + ' new connections to create fully connected graph');
-    console.log('Total pairs: ' + plot.pairs.length);
-    updatePlot(plotIndex);
-}}
 
-
-// Add scale toggle function
-function toggleScale(plotIndex) {{
-    var plot = plotData[plotIndex];
-    var fig = document.getElementsByClassName('js-plotly-plot')[0];
-    
-    // Toggle scale state
-    plot.current_scale = plot.current_scale === 'db' ? 'linear' : 'db';
-    
-    // Update main PSD trace
-    var psdTraceIndex = plotIndex * 2;
-    var newYData = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
-    
-    Plotly.restyle(fig, {{'y': [newYData]}}, [psdTraceIndex]);
-    
-    // Update peak powers
-    plot.peak_powers = plot.current_scale === 'db' ? plot.peak_powers_db : plot.peak_powers_linear;
-    
-    // FIXED: Update axis label properly
-    var yAxisKey = 'yaxis' + (plot.row === 1 && plot.col === 1 ? '' : ((plot.row-1)*3 + plot.col));
-    var newYLabel = plot.current_scale === 'db' ? 'PSD (dB)' : 'PSD (linear)';
-    
-    var layoutUpdate = {{}};
-    layoutUpdate[yAxisKey] = {{title: newYLabel}};  // FIXED: Proper nested object
-    Plotly.relayout(fig, layoutUpdate);
-    
-    console.log('Toggled to ' + plot.current_scale + ' scale');
-    
-    // CRITICAL: Redraw selected peaks with new scale
-    updatePlot(plotIndex);
-}}
-
-
-function updatePlot(plotIndex) {{
-    var plot = plotData[plotIndex];
-    var row = plot.row;
-    var col = plot.col;
-    var fig = document.getElementsByClassName('js-plotly-plot')[0];
-    
-    // PRESERVE AXIS RANGES - Get current ranges before any modifications
-    var currentLayout = fig.layout;
-    var xAxisKey = 'xaxis' + (row === 1 && col === 1 ? '' : ((row-1)*3 + col));
-    var yAxisKey = 'yaxis' + (row === 1 && col === 1 ? '' : ((row-1)*3 + col));
-    var currentXRange = currentLayout[xAxisKey] ? currentLayout[xAxisKey].range : null;
-    var currentYRange = currentLayout[yAxisKey] ? currentLayout[yAxisKey].range : null;
-    
-    // Remove old interactive traces
-    var tracesToRemove = [];
-    
-    for (var i = 0; i < fig.data.length; i++) {{
-        if (fig.data[i].name && (fig.data[i].name.includes('selected_' + plotIndex) || 
-                                fig.data[i].name.includes('pair_' + plotIndex) ||
-                                fig.data[i].name.includes('vline_' + plotIndex))) {{
-            tracesToRemove.push(i);
+        function clearSelections(plotIndex) {{
+            plotData[plotIndex].selected_peaks = [];
+            updatePlot(plotIndex);
         }}
-    }}
-    
-    if (tracesToRemove.length > 0) {{
-        Plotly.deleteTraces(fig, tracesToRemove);
-    }}
-    
-    // Clear old ratio annotations for this plot only
-    var layout = fig.layout;
-    if (layout.annotations) {{
-        layout.annotations = layout.annotations.filter(function(ann) {{
-            return !(ann.plotIndex && ann.plotIndex === plotIndex && ann.isRatio);
-        }});
-    }} else {{
-        layout.annotations = [];
-    }}
-    
-    // Prepare all traces to add in one batch
-    var tracesToAdd = [];
-    var axisRef = row === 1 && col === 1 ? '' : (row-1)*3 + col;
-    var xAxisRef = 'x' + axisRef;
-    var yAxisRef = 'y' + axisRef;
-    
-    // Add selected peaks with blue markers and frequency labels
-    if (plot.selected_peaks.length > 0) {{
-        var selectedX = [];
-        var selectedY = [];
-        var selectedText = [];
-        
-        for (var i = 0; i < plot.selected_peaks.length; i++) {{
-            var freq = plot.selected_peaks[i];
-            var peakIdx = plot.peak_freqs.findIndex(function(f) {{ 
-                return Math.abs(f - freq) < plot.click_tolerance; 
-            }});
+
+        function resetAll(plotIndex) {{
+            plotData[plotIndex].selected_peaks = [];
+            plotData[plotIndex].pairs = [];
+            console.log('Reset all for plot ' + plotIndex);
+            updatePlot(plotIndex);
+        }}
+
+        function connectAll(plotIndex) {{
+            var plot = plotData[plotIndex];
             
-            if (peakIdx >= 0) {{
-                selectedX.push(freq);
-
-                // selectedY.push(plot.peak_powers[peakIdx]);
-                selectedY.push(plot.current_scale === 'db' ? plot.peak_powers_db[peakIdx] : plot.peak_powers_linear[peakIdx]);
-
-                selectedText.push(freq.toFixed(0) + ' Hz');
+            // Get all nodes that should be in the fully connected graph:
+            // 1. Currently selected peaks 
+            // 2. Peaks that are already in existing pairs
+            var allNodes = new Set();
+            
+            // Add currently selected peaks
+            for (var i = 0; i < plot.selected_peaks.length; i++) {{
+                allNodes.add(plot.selected_peaks[i]);
             }}
-        }}
-        
-        if (selectedX.length > 0) {{
-            tracesToAdd.push({{
-                x: selectedX,
-                y: selectedY,
-                mode: 'markers+text',
-                marker: {{ color: 'blue', size: 10, line: {{ color: 'black', width: 1 }} }},
-                text: selectedText,
-                textposition: 'top center',
-                textfont: {{ color: 'blue', size: 10 }},
-                name: 'selected_' + plotIndex,
-                showlegend: false,
-                xaxis: xAxisRef,
-                yaxis: yAxisRef
-            }});
-        }}
-    }}
-    
-    // Prepare pair traces in batch
-    var pairVerticalLines = {{ x: [], y: [], mode: 'lines', line: {{ color: 'gray', width: 1, dash: 'dot' }}, opacity: 0.7, name: 'vlines_' + plotIndex, showlegend: false, xaxis: xAxisRef, yaxis: yAxisRef }};
-    
-    //var yMin = Math.min(...plot.psd_db);
-    //var yMax = Math.max(...plot.psd_db);
-    var currentPSD = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
-    var yMin = Math.min(...currentPSD);
-    var yMax = Math.max(...currentPSD);
-
-
-    // Add pairs with connecting lines and colored vertical lines
-    for (var i = 0; i < plot.pairs.length; i++) {{
-        var pair = plot.pairs[i];
-        var f0Idx = plot.peak_freqs.findIndex(function(f) {{ 
-            return Math.abs(f - pair.f0) < plot.click_tolerance; 
-        }});
-        var f1Idx = plot.peak_freqs.findIndex(function(f) {{ 
-            return Math.abs(f - pair.f1) < plot.click_tolerance; 
-        }});
-        
-        if (f0Idx >= 0 && f1Idx >= 0) {{
-            //var f0Power = plot.peak_powers[f0Idx];
-            //var f1Power = plot.peak_powers[f1Idx];
-            var f0Power = plot.current_scale === 'db' ? plot.peak_powers_db[f0Idx] : plot.peak_powers_linear[f0Idx];
-            var f1Power = plot.current_scale === 'db' ? plot.peak_powers_db[f1Idx] : plot.peak_powers_linear[f1Idx];
-
-            // Add to batch vertical lines
-            pairVerticalLines.x.push(pair.f0, pair.f0, null, pair.f1, pair.f1, null);
-            pairVerticalLines.y.push(yMin, yMax, null, yMin, yMax, null);
             
-            // Add connecting line with markers
-            tracesToAdd.push({{
-                x: [pair.f0, pair.f1],
-                y: [f0Power, f1Power],
-                mode: 'lines+markers+text',
-                line: {{ color: pair.color, width: 2 }},
-                marker: {{ color: 'blue', size: 10, line: {{ color: 'black', width: 1 }} }},
-                text: [pair.f0.toFixed(0) + ' Hz', pair.f1.toFixed(0) + ' Hz'],
-                textposition: 'top center',
-                textfont: {{ color: 'blue', size: 10 }},
-                name: 'pair_' + plotIndex + '_' + i,
-                showlegend: false,
-                xaxis: xAxisRef,
-                yaxis: yAxisRef
-            }});
-        }}
-    }}
-    
-    // Add the batched vertical lines if any pairs exist
-    if (pairVerticalLines.x.length > 0) {{
-        tracesToAdd.push(pairVerticalLines);
-    }}
-    
-    // CREATE TOP-RIGHT RATIO LIST for this plot
-    if (plot.pairs.length > 0) {{
-        // Create a single compact legend-style annotation
-        var ratioTexts = [];
-        for (var i = 0; i < plot.pairs.length; i++) {{
-            var pair = plot.pairs[i];
-            var ratio = pair.f1 / pair.f0;
-            ratioTexts.push(pair.f0.toFixed(0) + '→' + pair.f1.toFixed(0) + ' (r:' + ratio.toFixed(2) + ')');
-        }}
-        
-        // Join all ratios into a single multi-line text block
-        var combinedText = ratioTexts.join('<br>');
-        
-        // Calculate position for top-right of this specific subplot
-        var xDomain = currentLayout[xAxisKey] ? currentLayout[xAxisKey].domain : [0, 1];
-        var yDomain = currentLayout[yAxisKey] ? currentLayout[yAxisKey].domain : [0, 1];
-        
-        // Position at top-right corner of the subplot
-        var listX = xDomain[1] - 0.005; // Very close to right edge
-        var listY = yDomain[1] - 0.005; // Very close to top edge
-        
-        // Create single annotation with all ratios
-        layout.annotations.push({{
-            x: listX,
-            y: listY,
-            text: combinedText,
-            showarrow: false,
-            bgcolor: 'rgba(255, 255, 255, 0.9)',
-            bordercolor: 'gray',
-            borderwidth: 1,
-            font: {{ size: 8, color: 'black' }},
-            plotIndex: plotIndex,
-            isRatio: true,
-            xref: 'paper',
-            yref: 'paper',
-            xanchor: 'right',
-            yanchor: 'top',
-            align: 'right'
-        }});
-    }}
-    
-    // SINGLE BATCH UPDATE - Add all traces at once, then update layout
-    var updatePromise = Promise.resolve();
-    
-    if (tracesToAdd.length > 0) {{
-        updatePromise = Plotly.addTraces(fig, tracesToAdd);
-    }}
-    
-    // Update layout and restore axis ranges in one operation
-    var layoutUpdate = {{ annotations: layout.annotations }};
-    
-    // Restore axis ranges if they were captured
-    if (currentXRange) {{
-        layoutUpdate[xAxisKey + '.range'] = currentXRange;
-    }}
-    if (currentYRange) {{
-        layoutUpdate[yAxisKey + '.range'] = currentYRange;
-    }}
-    
-    updatePromise.then(function() {{
-        return Plotly.relayout(fig, layoutUpdate);
-    }}).then(function() {{
-        // Console debug info
-        if (plot.pairs.length > 0) {{
-            console.log('=== Pairs for Plot ' + plotIndex + ' ===');
+            // Add peaks from existing pairs
+            for (var i = 0; i < plot.pairs.length; i++) {{
+                allNodes.add(plot.pairs[i].f0);
+                allNodes.add(plot.pairs[i].f1);
+            }}
+            
+            var nodes = Array.from(allNodes).sort(function(a, b) {{ return a - b; }});
+            
+            if (nodes.length < 2) {{
+                console.log('Need at least 2 points to connect');
+                return;
+            }}
+            
+            console.log('Creating fully connected graph with ' + nodes.length + ' nodes: ' + nodes.map(n => n.toFixed(1)).join(', '));
+            
+            // Create pairs for all combinations that don't already exist
+            var existingPairSet = new Set();
             for (var i = 0; i < plot.pairs.length; i++) {{
                 var pair = plot.pairs[i];
-                var ratio = pair.f1 / pair.f0;
-                console.log('Pair ' + (i+1) + ': ' + pair.f0.toFixed(1) + ' Hz <-> ' + pair.f1.toFixed(1) + ' Hz (ratio: ' + ratio.toFixed(3) + ')');
+                var key1 = pair.f0 + '-' + pair.f1;
+                var key2 = pair.f1 + '-' + pair.f0;
+                existingPairSet.add(key1);
+                existingPairSet.add(key2);
             }}
-        }}
-    }});
-}}
-
-
-
-document.addEventListener('DOMContentLoaded', function() {{
-    var plotDiv = document.getElementsByClassName('js-plotly-plot')[0];
-    
-    plotDiv.on('plotly_click', function(data) {{
-        if (!data.points || data.points.length === 0) return;
-        
-        var point = data.points[0];
-        var clickX = point.x;
-        var plotIndex = 0;
-        
-        // Determine which subplot was clicked
-        if (point.data.name && point.data.name.includes('_')) {{
-            var parts = point.data.name.split('_');
-            if (parts.length > 1) {{
-                plotIndex = parseInt(parts[1]) || 0;
+            
+            var newPairsAdded = 0;
+            for (var i = 0; i < nodes.length; i++) {{
+                for (var j = i + 1; j < nodes.length; j++) {{
+                    if (plot.pairs.length >= plot.max_pairs) {{
+                        console.log('Reached maximum pairs limit');
+                        break;
+                    }}
+                    
+                    var f0 = Math.min(nodes[i], nodes[j]);
+                    var f1 = Math.max(nodes[i], nodes[j]);
+                    var pairKey = f0 + '-' + f1;
+                    
+                    // Only add if this pair doesn't already exist
+                    if (!existingPairSet.has(pairKey)) {{
+                        var color = plot.colors[plot.pairs.length % plot.colors.length];
+                        
+                        plot.pairs.push({{
+                            f0: f0,
+                            f1: f1,
+                            color: color
+                        }});
+                        
+                        existingPairSet.add(pairKey);
+                        existingPairSet.add(f1 + '-' + f0);
+                        newPairsAdded++;
+                    }}
+                }}
+                if (plot.pairs.length >= plot.max_pairs) break;
             }}
+            
+            // DON'T clear selected peaks - keep them for potential future operations
+            // plot.selected_peaks = [];  // REMOVED THIS LINE
+            
+            console.log('Added ' + newPairsAdded + ' new connections to create fully connected graph');
+            console.log('Total pairs: ' + plot.pairs.length);
+            updatePlot(plotIndex);
         }}
-        
-        var currentTime = Date.now();
-        var timeDiff = currentTime - lastClickTime;
-        var isDoubleClick = timeDiff < 300;
-        
-        // Check for Ctrl key modifier
-        var isCtrlClick = data.event && (data.event.ctrlKey || data.event.metaKey);
-        
-        if (isDoubleClick) {{
-            doubleClickTime = currentTime;
+
+
+        // Add scale toggle function
+        function toggleScale(plotIndex) {{
+            var plot = plotData[plotIndex];
+            var fig = document.getElementsByClassName('js-plotly-plot')[0];
+            
+            // Toggle scale state
+            plot.current_scale = plot.current_scale === 'db' ? 'linear' : 'db';
+            
+            // Update main PSD trace
+            var psdTraceIndex = plotIndex * 2;
+            var newYData = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
+            
+            Plotly.restyle(fig, {{'y': [newYData]}}, [psdTraceIndex]);
+            
+            // Update peak powers
+            plot.peak_powers = plot.current_scale === 'db' ? plot.peak_powers_db : plot.peak_powers_linear;
+            
+            // FIXED: Update axis label properly
+            var yAxisKey = 'yaxis' + (plot.row === 1 && plot.col === 1 ? '' : ((plot.row-1)*3 + plot.col));
+            var newYLabel = plot.current_scale === 'db' ? 'PSD (dB)' : 'PSD (linear)';
+            
+            var layoutUpdate = {{}};
+            layoutUpdate[yAxisKey] = {{title: newYLabel}};  // FIXED: Proper nested object
+            Plotly.relayout(fig, layoutUpdate);
+            
+            console.log('Toggled to ' + plot.current_scale + ' scale');
+            
+            // CRITICAL: Redraw selected peaks with new scale
+            updatePlot(plotIndex);
         }}
-        
-        lastClickTime = currentTime;
-        
-        var peakIdx = findNearestPeak(plotIndex, clickX);
-        
-        if (peakIdx !== null) {{
-            if (isCtrlClick) {{
-                // Ctrl+click to remove peak
-                removePeak(plotIndex, peakIdx);
-            }} else if (isDoubleClick) {{
-                // Double-click to remove peak (alternative method)
-                removePeak(plotIndex, peakIdx);
+
+        // Update Plot
+        function updatePlot(plotIndex) {{
+            var plot = plotData[plotIndex];
+            var row = plot.row;
+            var col = plot.col;
+            var fig = document.getElementsByClassName('js-plotly-plot')[0];
+            
+            // PRESERVE AXIS RANGES - Get current ranges before any modifications
+            var currentLayout = fig.layout;
+            var xAxisKey = 'xaxis' + (row === 1 && col === 1 ? '' : ((row-1)*3 + col));
+            var yAxisKey = 'yaxis' + (row === 1 && col === 1 ? '' : ((row-1)*3 + col));
+            var currentXRange = currentLayout[xAxisKey] ? currentLayout[xAxisKey].range : null;
+            var currentYRange = currentLayout[yAxisKey] ? currentLayout[yAxisKey].range : null;
+            
+            // Remove old interactive traces
+            var tracesToRemove = [];
+            
+            for (var i = 0; i < fig.data.length; i++) {{
+                if (fig.data[i].name && (fig.data[i].name.includes('selected_' + plotIndex) || 
+                                        fig.data[i].name.includes('pair_' + plotIndex) ||
+                                        fig.data[i].name.includes('vline_' + plotIndex))) {{
+                    tracesToRemove.push(i);
+                }}
+            }}
+            
+            if (tracesToRemove.length > 0) {{
+                Plotly.deleteTraces(fig, tracesToRemove);
+            }}
+            
+            // Clear old ratio annotations for this plot only
+            var layout = fig.layout;
+            if (layout.annotations) {{
+                layout.annotations = layout.annotations.filter(function(ann) {{
+                    return !(ann.plotIndex && ann.plotIndex === plotIndex && ann.isRatio);
+                }});
             }} else {{
-                // Regular click to select peak
-                selectPeak(plotIndex, peakIdx);
+                layout.annotations = [];
             }}
-        }}
-    }});
-    
-    plotDiv.addEventListener('contextmenu', function(e) {{
-        e.preventDefault();
-        
-        // Simple right-click handler for pair creation
-        var rect = plotDiv.getBoundingClientRect();
-        var plotIndex = 0; // For simplicity, apply to first plot
-        createPair(plotIndex);
-        
-        return false;
-    }});
-    
-    document.addEventListener('keypress', function(event) {{
-        var key = event.key.toLowerCase();
-        
-        for (var i = 0; i < plotData.length; i++) {{
-            switch(key) {{
-                case 'c':
-                    clearSelections(i);
-                    break;
-                case 'r':
-                    resetAll(i);
-                    break;
-                case 'a':
-                    connectAll(i);
-                    break;
-            }}
-        }}
-    }});
-    
-    console.log('Interactive PSD analysis ready');
-    console.log('Left-click: select peak, Ctrl+click: remove peak, Double-click: remove peak');
-    console.log('Right-click: create pair, Keys: c=clear, r=reset, a=fully connect node graph, d=toggle db scale view');
-}});
-</script>
+            
+            // Prepare all traces to add in one batch
+            var tracesToAdd = [];
+            var axisRef = row === 1 && col === 1 ? '' : (row-1)*3 + col;
+            var xAxisRef = 'x' + axisRef;
+            var yAxisRef = 'y' + axisRef;
+            
+            // Add selected peaks with blue markers and frequency labels
+            if (plot.selected_peaks.length > 0) {{
+                var selectedX = [];
+                var selectedY = [];
+                var selectedText = [];
+                
+                for (var i = 0; i < plot.selected_peaks.length; i++) {{
+                    var freq = plot.selected_peaks[i];
+                    var peakIdx = plot.peak_freqs.findIndex(function(f) {{ 
+                        return Math.abs(f - freq) < plot.click_tolerance; 
+                    }});
+                    
+                    if (peakIdx >= 0) {{
+                        selectedX.push(freq);
 
-"""
+                        // selectedY.push(plot.peak_powers[peakIdx]);
+                        selectedY.push(plot.current_scale === 'db' ? plot.peak_powers_db[peakIdx] : plot.peak_powers_linear[peakIdx]);
+
+                        selectedText.push(freq.toFixed(0) + ' Hz');
+                    }}
+                }}
+                
+                if (selectedX.length > 0) {{
+                    tracesToAdd.push({{
+                        x: selectedX,
+                        y: selectedY,
+                        mode: 'markers+text',
+                        marker: {{ color: 'blue', size: 10, line: {{ color: 'black', width: 1 }} }},
+                        text: selectedText,
+                        textposition: 'top center',
+                        textfont: {{ color: 'blue', size: 10 }},
+                        name: 'selected_' + plotIndex,
+                        showlegend: false,
+                        xaxis: xAxisRef,
+                        yaxis: yAxisRef
+                    }});
+                }}
+            }}
+            
+            // Prepare pair traces in batch
+            var pairVerticalLines = {{ x: [], y: [], mode: 'lines', line: {{ color: 'gray', width: 1, dash: 'dot' }}, opacity: 0.7, name: 'vlines_' + plotIndex, showlegend: false, xaxis: xAxisRef, yaxis: yAxisRef }};
+            
+            //var yMin = Math.min(...plot.psd_db);
+            //var yMax = Math.max(...plot.psd_db);
+            var currentPSD = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
+            var yMin = Math.min(...currentPSD);
+            var yMax = Math.max(...currentPSD);
+
+
+            // Add pairs with connecting lines and colored vertical lines
+            for (var i = 0; i < plot.pairs.length; i++) {{
+                var pair = plot.pairs[i];
+                var f0Idx = plot.peak_freqs.findIndex(function(f) {{ 
+                    return Math.abs(f - pair.f0) < plot.click_tolerance; 
+                }});
+                var f1Idx = plot.peak_freqs.findIndex(function(f) {{ 
+                    return Math.abs(f - pair.f1) < plot.click_tolerance; 
+                }});
+                
+                if (f0Idx >= 0 && f1Idx >= 0) {{
+                    //var f0Power = plot.peak_powers[f0Idx];
+                    //var f1Power = plot.peak_powers[f1Idx];
+                    var f0Power = plot.current_scale === 'db' ? plot.peak_powers_db[f0Idx] : plot.peak_powers_linear[f0Idx];
+                    var f1Power = plot.current_scale === 'db' ? plot.peak_powers_db[f1Idx] : plot.peak_powers_linear[f1Idx];
+
+                    // Add to batch vertical lines
+                    pairVerticalLines.x.push(pair.f0, pair.f0, null, pair.f1, pair.f1, null);
+                    pairVerticalLines.y.push(yMin, yMax, null, yMin, yMax, null);
+                    
+                    // Add connecting line with markers
+                    tracesToAdd.push({{
+                        x: [pair.f0, pair.f1],
+                        y: [f0Power, f1Power],
+                        mode: 'lines+markers+text',
+                        line: {{ color: pair.color, width: 2 }},
+                        marker: {{ color: 'blue', size: 10, line: {{ color: 'black', width: 1 }} }},
+                        text: [pair.f0.toFixed(0) + ' Hz', pair.f1.toFixed(0) + ' Hz'],
+                        textposition: 'top center',
+                        textfont: {{ color: 'blue', size: 10 }},
+                        name: 'pair_' + plotIndex + '_' + i,
+                        showlegend: false,
+                        xaxis: xAxisRef,
+                        yaxis: yAxisRef
+                    }});
+                }}
+            }}
+            
+            // Add the batched vertical lines if any pairs exist
+            if (pairVerticalLines.x.length > 0) {{
+                tracesToAdd.push(pairVerticalLines);
+            }}
+            
+            // CREATE TOP-RIGHT RATIO LIST for this plot
+            if (plot.pairs.length > 0) {{
+                // Create a single compact legend-style annotation
+                var ratioTexts = [];
+                for (var i = 0; i < plot.pairs.length; i++) {{
+                    var pair = plot.pairs[i];
+                    var ratio = pair.f1 / pair.f0;
+                    ratioTexts.push(pair.f0.toFixed(0) + '→' + pair.f1.toFixed(0) + ' (r:' + ratio.toFixed(2) + ')');
+                }}
+                
+                // Join all ratios into a single multi-line text block
+                var combinedText = ratioTexts.join('<br>');
+                
+                // Calculate position for top-right of this specific subplot
+                var xDomain = currentLayout[xAxisKey] ? currentLayout[xAxisKey].domain : [0, 1];
+                var yDomain = currentLayout[yAxisKey] ? currentLayout[yAxisKey].domain : [0, 1];
+                
+                // Position at top-right corner of the subplot
+                var listX = xDomain[1] - 0.005; // Very close to right edge
+                var listY = yDomain[1] - 0.005; // Very close to top edge
+                
+                // Create single annotation with all ratios
+                layout.annotations.push({{
+                    x: listX,
+                    y: listY,
+                    text: combinedText,
+                    showarrow: false,
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: 'gray',
+                    borderwidth: 1,
+                    font: {{ size: 8, color: 'black' }},
+                    plotIndex: plotIndex,
+                    isRatio: true,
+                    xref: 'paper',
+                    yref: 'paper',
+                    xanchor: 'right',
+                    yanchor: 'top',
+                    align: 'right'
+                }});
+            }}
+            
+            // SINGLE BATCH UPDATE - Add all traces at once, then update layout
+            var updatePromise = Promise.resolve();
+            
+            if (tracesToAdd.length > 0) {{
+                updatePromise = Plotly.addTraces(fig, tracesToAdd);
+            }}
+            
+            // Update layout and restore axis ranges in one operation
+            var layoutUpdate = {{ annotations: layout.annotations }};
+            
+            // Restore axis ranges if they were captured
+            if (currentXRange) {{
+                layoutUpdate[xAxisKey + '.range'] = currentXRange;
+            }}
+            if (currentYRange) {{
+                layoutUpdate[yAxisKey + '.range'] = currentYRange;
+            }}
+            
+            updatePromise.then(function() {{
+                return Plotly.relayout(fig, layoutUpdate);
+            }}).then(function() {{
+                // Console debug info
+                if (plot.pairs.length > 0) {{
+                    console.log('=== Pairs for Plot ' + plotIndex + ' ===');
+                    for (var i = 0; i < plot.pairs.length; i++) {{
+                        var pair = plot.pairs[i];
+                        var ratio = pair.f1 / pair.f0;
+                        console.log('Pair ' + (i+1) + ': ' + pair.f0.toFixed(1) + ' Hz <-> ' + pair.f1.toFixed(1) + ' Hz (ratio: ' + ratio.toFixed(3) + ')');
+                    }}
+                }}
+            }});
+        }}
+
+
+        document.addEventListener('DOMContentLoaded', function() {{
+            var plotDiv = document.getElementsByClassName('js-plotly-plot')[0];
+            
+            plotDiv.on('plotly_click', function(data) {{
+                if (!data.points || data.points.length === 0) return;
+                
+                var point = data.points[0];
+                var clickX = point.x;
+                var plotIndex = 0;
+                
+                // Determine which subplot was clicked
+                if (point.data.name && point.data.name.includes('_')) {{
+                    var parts = point.data.name.split('_');
+                    if (parts.length > 1) {{
+                        plotIndex = parseInt(parts[1]) || 0;
+                    }}
+                }}
+                
+                var currentTime = Date.now();
+                var timeDiff = currentTime - lastClickTime;
+                var isDoubleClick = timeDiff < 300;
+                
+                // Check for Ctrl key modifier
+                var isCtrlClick = data.event && (data.event.ctrlKey || data.event.metaKey);
+                
+                if (isDoubleClick) {{
+                    doubleClickTime = currentTime;
+                }}
+                
+                lastClickTime = currentTime;
+                
+                var peakIdx = findNearestPeak(plotIndex, clickX);
+                
+                if (peakIdx !== null) {{
+                    if (isCtrlClick) {{
+                        // Ctrl+click to remove peak
+                        removePeak(plotIndex, peakIdx);
+                    }} else if (isDoubleClick) {{
+                        // Double-click to remove peak (alternative method)
+                        removePeak(plotIndex, peakIdx);
+                    }} else {{
+                        // Regular click to select peak
+                        selectPeak(plotIndex, peakIdx);
+                    }}
+                }}
+            }});
+            
+            plotDiv.addEventListener('contextmenu', function(e) {{
+                e.preventDefault();
+                
+                // Simple right-click handler for pair creation
+                var rect = plotDiv.getBoundingClientRect();
+                var plotIndex = 0; // For simplicity, apply to first plot
+                createPair(plotIndex);
+                
+                return false;
+            }});
+            
+            document.addEventListener('keypress', function(event) {{
+                var key = event.key.toLowerCase();
+                
+                for (var i = 0; i < plotData.length; i++) {{
+                    switch(key) {{
+                        case 'c':
+                            clearSelections(i);
+                            break;
+                        case 'r':
+                            resetAll(i);
+                            break;
+                        case 'a':
+                            connectAll(i);
+                            break;
+                    }}
+                }}
+            }});
+            
+            console.log('Interactive PSD analysis ready');
+            console.log('Left-click: select peak, Ctrl+click: remove peak, Double-click: remove peak');
+            console.log('Right-click: create pair, Keys: c=clear, r=reset, a=fully connect node graph, d=toggle db scale view');   
+        }});
+        </script>
+    """)
     
     # Define the HTML file path
     html_filename = f"{base_filename}_{jelfun.get_timestamp()}.html"
@@ -2590,7 +2545,65 @@ document.addEventListener('DOMContentLoaded', function() {{
 
 
 
-from jellyfish_dynamite import save_jellyfish_template
+# ==================== SERVER ====================
+
+
+def serve_html_with_audio(html_path, port=8000):
+    """Start a local web server to serve HTML with audio files."""
+    import http.server
+    import socketserver
+    import webbrowser
+    import os
+    from pathlib import Path
+    
+    html_file = Path(html_path)
+    
+    # Find the 'code' directory by going up from HTML file
+    current_dir = html_file.parent
+    server_root = current_dir  # Default fallback
+    
+    # Look for 'code' directory or a directory containing 'tranche'
+    while current_dir.parent != current_dir:  # Don't go above filesystem root
+        if current_dir.name == 'code' or (current_dir / "tranche").exists():
+            server_root = current_dir
+            print(f"✅ Found server root: {server_root}")
+            break
+        current_dir = current_dir.parent
+    
+    print(f"🌐 Starting web server in: {server_root}")
+    
+    # Check if we can find any audio directories
+    tranche_dir = server_root / "tranche"
+    if tranche_dir.exists():
+        slices_dirs = list(tranche_dir.glob("slices/*"))
+        print(f"🎵 Found {len(slices_dirs)} slice directories: {[d.name for d in slices_dirs[:3]]}...")
+    
+    original_dir = os.getcwd()
+    os.chdir(server_root)
+    
+    # Calculate relative path from server root to HTML file
+    relative_html_path = os.path.relpath(html_path, server_root).replace('\\', '/')
+    
+    class QuietHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+    
+    try:
+        with socketserver.TCPServer(("", port), QuietHTTPRequestHandler) as httpd:
+            url = f'http://localhost:{port}/{relative_html_path}'
+            print(f"🌐 Server running at: {url}")
+            webbrowser.open(url)
+            print(f"📝 Press Ctrl+C to stop server")
+            
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\n🛑 Server stopped")
+    except Exception as e:
+        print(f"❌ Server error: {e}")
+    finally:
+        os.chdir(original_dir)
+
 
 
 # ==================== SAVE FUNCTIONS ====================
@@ -2639,8 +2652,7 @@ def save_figure_with_timestamp(fig, plots, base_filename="psd_anal", output_dire
 
     return fig_path, data_path
 
-
-def save_jellyfish_jinja(template_vars, template_name, base_filename="psd_analysis", output_directory=None):
+def save_jellyfish_jinja(template_vars, template_name, base_filename="psd_analysis", output_directory=None, **kwargs):
     """Agnostic Jinja templating function - works with any template and data."""
     
     # Custom JSON encoder for NumPy types
@@ -2698,7 +2710,7 @@ def save_jellyfish_jinja(template_vars, template_name, base_filename="psd_analys
 
 # PLOTLY TEMPLATE ... TEMPLOT??
 
-def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scale=True, **kwargs):
+def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scale=True, output_directory=None, **kwargs):
     """Prepare template variables specifically for Plotly templates with dual scale support."""
 
     # Custom JSON encoder for NumPy types
@@ -2731,7 +2743,6 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
     else:
         v_spacing = 0.15
 
-
     # Create plotly figure with subplots
     plotly_fig = make_subplots(
         rows=n_rows, 
@@ -2750,7 +2761,6 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
             return list(arr)
         else:
             return arr
-
 
     # Process each plot
     for i, plot in enumerate(plots):
@@ -2784,7 +2794,6 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         # Use the scale parameter to determine starting data
         starting_psd = db_psd if use_db_scale else linear_psd
         starting_peak_powers = peak_powers_db if use_db_scale else peak_powers_linear
-
 
         # Calculate and add spectral ridge and vein data
         ridge_data = None
@@ -2825,7 +2834,6 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
                 ridge_data = None
                 veins_data = None
 
-
             # DEBUG 
             # Check if data was calculated
             print(f"RIDGE/VEIN DEBUG plot {i}: ridge_data={ridge_data is not None}, veins_data={veins_data is not None}")
@@ -2848,10 +2856,8 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
 
             times = safe_tolist(plot.times)
 
-
         # S P E C T R O G R A M !!!!!
         # remember - only the fft has this for now, wil fail for CQT etc. 
-
         # BEFORE adding spectrogram to Plotly:
         if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram:
             times = safe_tolist(plot.times)
@@ -2985,12 +2991,51 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
     fig_json = plotly_fig.to_json()
     fig_dict = json.loads(fig_json)
 
-
-        
     subplot_titles = [getattr(plot, 'filename', f"Plot {i+1}") for i, plot in enumerate(plots)]
+
+    # Audio source path calculation for browser access
+    audio_source_path = ""
+    if 'audio_directory' in kwargs and kwargs['audio_directory']:
+        try:
+            audio_dir = Path(kwargs['audio_directory'])
+            
+            # Extract the relative path from code/ directory
+            # e.g., if audio_directory is "/Users/me/code/tranche/slices/2556"
+            # we want "tranche/slices/2556"
+            audio_dir_str = str(audio_dir).replace('\\', '/')
+            
+            if 'code/' in audio_dir_str:
+                # Split on 'code/' and take the part after it
+                audio_source_path = '/' + audio_dir_str.split('code/')[-1] # leading slash looks in server root
+            else:
+                # Fallback: try to construct relative path
+                # Look for tranche/slices pattern
+                parts = audio_dir.parts
+                try:
+                    tranche_idx = parts.index('tranche')
+                    audio_source_path = '/'.join(parts[tranche_idx:])
+                except ValueError:
+                    # Last resort: use directory name
+                    audio_source_path = audio_dir.name
+            
+            print(f"🎵 Audio source path calculated: {audio_source_path}")
+            
+            # Debug info
+            print(f"🔍 DEBUG AUDIO PATHS:")
+            print(f"  Original audio directory: {audio_dir}")
+            print(f"  Calculated source path: {audio_source_path}")
+            
+        except Exception as e:
+            print(f"⚠️  Could not calculate audio path: {e}")
+            audio_source_path = ""
+
 
     # Return template variables for Plotly
     return {
+        # Audio configuration
+        'AUDIO_SOURCE_PATH': audio_source_path,
+        
+        # Plot display stuff
         'PLOT_ID': f"plot_{jelfun.get_timestamp()}",
         'PLOT_HEIGHT': max(600, 500 * n_rows),
         'PLOT_WIDTH': max(800, 300 * n_cols),
@@ -3003,14 +3048,12 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
         'N_COLS': n_cols,
         'TOTAL_PLOTS': len(plots), 
         
-        # Resolution Parameters
+        # Spectral resolution params
         'PSD_N_FFT': kwargs.get('psd_n_fft', 1024),
         'SPEC_N_FFT': kwargs.get('spec_n_fft', 512), 
         'PSD_HOP_LENGTH': kwargs.get('psd_hop_length', 256),
         'SPEC_HOP_LENGTH': kwargs.get('spec_hop_length', 128)
     }
-
-
 
 def save_spectrogram_images(plots, output_directory):
     """Save spectrograms as PNG images for HTML background use."""
@@ -3088,7 +3131,14 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
     spectrogram_images = save_spectrogram_images(plots, output_directory)
 
     # Prepare Plotly-specific template variables
-    template_vars = prepare_plotly_template_vars(plots, methods, dir_name, use_db_scale)
+    # template_vars = prepare_plotly_template_vars(plots, methods, dir_name, use_db_scale)
+    
+    # Prepare template variables including audio source path
+    template_vars = prepare_plotly_template_vars(
+        plots, methods, dir_name, use_db_scale, 
+        output_directory=output_directory,  # Make sure this is passed
+        audio_directory=kwargs.get('audio_directory')
+    )
 
     # ADD SPECTROGRAM DATA TO TEMPLATE VARS
     template_vars['SPECTROGRAM_IMAGES'] = json.dumps(spectrogram_images)
@@ -3198,9 +3248,11 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
     print(f"Data saved to: {data_path}")
     print(f"Graph data saved to: {graph_path}")
 
+    # # Start simple web server for audio compatibility
+    print(f"🎵 Starting web server for audio compatibility...")
+    serve_html_with_audio(html_path)
+
     return html_path, data_path, graph_path
-
-
 
 
 # GEOLOGY MODS
@@ -3230,7 +3282,7 @@ def main():
     # nfft = 2048  # Will set psd_n_fft=2048, spec_n_fft=1024
     
     # Option 2: Custom dual-resolution mode (comment out nfft above if using this)
-    psd_n_fft = 1024      # High frequency resolution for PSD/peaks
+    psd_n_fft = 1024      # Higher frequency resolution for PSD/peaks
     spec_n_fft = 512     # Moderate frequency resolution for spectrogram
     
     # If unspecified, hop_length is calculated based off nfft values
@@ -3238,12 +3290,15 @@ def main():
     # spec_hop_length = 128 # Very fine time steps for smooth ridges/veins
 
     # Minimal testing: 
-    methods = ["FFT_DUAL", "CQT"]#, "Multi-Res", "Chirplet Zero"]
+    methods = ["FFT_DUAL"]
+    # More Options:
+    # methods = ["FFT_DUAL", "CQT", "Multi-Res", "Chirplet Zero"]
+    
 
     selected_files = select_audio_files(
         main_slicedir,
         range_start=0,
-        range_end=None
+        range_end=4
     )
 
     # MATPLOTLIB PYTHON PLOTS
@@ -3282,7 +3337,8 @@ def main():
             # n_fft=nfft, hop_length=hop_length,
             psd_n_fft=psd_n_fft, spec_n_fft=spec_n_fft, 
             show_ridge=True, 
-            show_veins=True
+            show_veins=True, 
+            audio_directory=main_slicedir  # Pass source audio directory for path calculation
         )
     else:
         print("No audio files found or analysis failed.")

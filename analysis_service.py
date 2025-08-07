@@ -46,6 +46,7 @@ class AnalysisService:
                 audio_directory=session_dir,
                 max_pairs=10,
                 selected_files=[f.filename for f in files],
+                audio_directory=session_dir,  # Audio synthesis directory
                 **analysis_params # Use filtered params
             )
             
@@ -54,8 +55,10 @@ class AnalysisService:
                 plots,
                 base_filename=f"analysis_{int(time.time())}",
                 output_directory=session_dir,
-                #dir_name=dir_short_name, # Changed to use the user-provided name from params
-                **params
+                dir_name=params.get('dir_name', dir_short_name), # Changed to use the user-provided name 
+                methods=params.get('methods', ['FFT_DUAL']),
+                audio_directory=session_dir,  # Audio synthesis directory
+                **{k: v for k, v in params.items() if k not in ['dir_name', 'methods']}
             )
             
             processing_time = time.time() - start_time
