@@ -6,6 +6,8 @@ Interactive PSD Analysis Tool
 """
 import os
 import sys
+import webbrowser
+import threading
 
 # macOS threading fixes - MUST be before other imports
 os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
@@ -35,8 +37,7 @@ print(f"✅ Running on Python {sys.version_info.major}.{sys.version_info.minor}.
 
 # jelly_app.py
 
-from flask import Flask, request, render_template, jsonify, send_file
-import os
+from flask import Flask, request, render_template, jsonify, send_file, send_from_directory, abort
 import uuid
 import tempfile
 import shutil
@@ -206,6 +207,29 @@ def synthesize_audio():
     # Implementation for audio synthesis
     return jsonify({'success': True, 'audio_url': '/generated_audio.wav'})
 
+@app.route('/temp_uploads/<session_id>/<filename>')
+def serve_session_audio(session_id, filename):
+    """Serve audio files from session directories"""
+    print(f"🎵 Route called: session_id={session_id}, filename={filename}")
+    
+    try:
+        session_path = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+        full_path = os.path.join(session_path, filename)
+        
+        print(f"🎵 Looking for file at: {full_path}")
+        print(f"🎵 File exists: {os.path.exists(full_path)}")
+        
+        if os.path.exists(full_path):
+            print(f"🎵 Files in directory: {os.listdir(session_path)}")
+        
+        response = send_from_directory(session_path, filename)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET'
+        return response
+    except Exception as e:
+        print(f"❌ Error serving audio: {e}")
+        abort(404)
+
 
 if __name__ == '__main__':
     # Setup
@@ -215,4 +239,12 @@ if __name__ == '__main__':
     print(f"📁 Upload folder: {app.config['UPLOAD_FOLDER']}")
     print("🌐 Server: http://localhost:5000")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Auto-open browser (only in main process, not debug reloader)
+    def open_browser():
+        webbrowser.open('http://localhost:5000')
+
+    # Only open browser if not in reloader subprocess
+    if not os.environ.get('WERKZEUG_RUN_MAIN'):
+        threading.Timer(1.5, open_browser).start()
+
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)

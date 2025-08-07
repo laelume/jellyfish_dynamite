@@ -2998,26 +2998,39 @@ def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scal
     if 'audio_directory' in kwargs and kwargs['audio_directory']:
         try:
             audio_dir = Path(kwargs['audio_directory'])
-            
-            # Extract the relative path from code/ directory
-            # e.g., if audio_directory is "/Users/me/code/tranche/slices/2556"
-            # we want "tranche/slices/2556"
-            audio_dir_str = str(audio_dir).replace('\\', '/')
-            
-            if 'code/' in audio_dir_str:
-                # Split on 'code/' and take the part after it
-                audio_source_path = '/' + audio_dir_str.split('code/')[-1] # leading slash looks in server root
-            else:
-                # Fallback: try to construct relative path
-                # Look for tranche/slices pattern
+
+            # For Flask uploads, use the session directory structure
+            if 'temp_uploads' in str(audio_dir):
+                # Extract session ID from path like "temp_uploads/0f6c2775"
                 parts = audio_dir.parts
-                try:
-                    tranche_idx = parts.index('tranche')
-                    audio_source_path = '/'.join(parts[tranche_idx:])
-                except ValueError:
-                    # Last resort: use directory name
-                    audio_source_path = audio_dir.name
-            
+                if 'temp_uploads' in parts:
+                    session_idx = parts.index('temp_uploads')
+                    if len(parts) > session_idx + 1:
+                        session_id = parts[session_idx + 1]
+                        audio_source_path = f"temp_uploads/{session_id}"
+                        print(f"🎵 Flask session audio path: {audio_source_path}")
+
+            # Original logic for direct audio directories
+            else:    
+                # Extract the relative path from code/ directory
+                # e.g., if audio_directory is "/Users/me/code/tranche/slices/2556"
+                # we want "tranche/slices/2556"
+                audio_dir_str = str(audio_dir).replace('\\', '/')
+                
+                if 'code/' in audio_dir_str:
+                    # Split on 'code/' and take the part after it
+                    audio_source_path = '/' + audio_dir_str.split('code/')[-1] # leading slash looks in server root
+                else:
+                    # Fallback: try to construct relative path
+                    # Look for tranche/slices pattern
+                    parts = audio_dir.parts
+                    try:
+                        tranche_idx = parts.index('tranche')
+                        audio_source_path = '/'.join(parts[tranche_idx:])
+                    except ValueError:
+                        # Last resort: use directory name
+                        audio_source_path = audio_dir.name
+                
             print(f"🎵 Audio source path calculated: {audio_source_path}")
             
             # Debug info

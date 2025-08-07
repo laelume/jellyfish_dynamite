@@ -46,7 +46,6 @@ class AnalysisService:
                 audio_directory=session_dir,
                 max_pairs=10,
                 selected_files=[f.filename for f in files],
-                audio_directory=session_dir,  # Audio synthesis directory
                 **analysis_params # Use filtered params
             )
             
