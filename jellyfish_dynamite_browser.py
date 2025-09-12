@@ -3183,7 +3183,7 @@ def save_jellyfish_plotly(plots, base_filename="psd_analysis_plotly", output_dir
 
 
     # Use the Plotly template
-    template_name = "jellyfish_dynamite_plotly.html"
+    template_name = "jellyfish_dynamite_browser.html"
 
     # Call the agnostic Jinja function
     html_path = save_jellyfish_jinja(template_vars, template_name, base_filename, output_directory)

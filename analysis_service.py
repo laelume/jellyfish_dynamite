@@ -1,6 +1,6 @@
 # analysis_service.py
 
-import jellyfish_plotly_browser as jelbrow
+import jellyfish_dynamite_browser as jelbrow
 import jelly_funcs as jelfun
 import os
 import time

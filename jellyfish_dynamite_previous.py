@@ -1,4 +1,4 @@
-# jellyfish_dynamite.py
+# jellyfish_dynamite_previous.py
 
 import json
 import os
