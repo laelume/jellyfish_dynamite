@@ -1,6 +1,7 @@
 # analysis_service.py
 
-import jellyfish_dynamite_browser as jelbrow
+# import jellyfish_dynamite_browser as jelbrow
+import jellyfish_dynamo as jelbrow # Testing new features for development branch
 import jelly_funcs as jelfun
 import os
 import time

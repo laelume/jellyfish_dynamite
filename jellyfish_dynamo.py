@@ -1,0 +1,4030 @@
+# jellyfish_dynamo.ipynb
+
+# PREVIOUSLY: jellyfish_plotly_browser.ipynb
+
+# A complete interactive workflow for audio analysis of short-scale audio syllables, with a use case for Gelatik trill bouts
+# Compares wave transformations, maps multiple dimensions onto one window, visualizes a variety of metrics. 
+# New features: veins and ridges, invertingthe time dimension and mapping it to power, so that frequency remains along the same axis 
+# Ordinal numbering system for assigning ordinal sets? to syllables
+
+# Interactive Spectral Analysis Toolhari wikikiao
+# From jellyfish_super_scratch, using jellyfish_dynamite html
+# Combines multiple spectral analysis methods with interactive visualization
+# Uses jellyfush_dynamite html as the format for the browser-based plotting
+
+
+
+                 ############ 
+          ######              ######
+      ###              ##            ###
+   ##         ##         ##      ##      ##
+##      ##      ##       ##         ##      ##
+
+   ##      ##      ##       ##    ##        ##
+
+      ##      ##      ###      ##    #   ##
+
+       #   #     #    #   #   #    # #
+      #   #    #    #    #    #   #   #
+     #    #    #    #    #    #   #   #
+      #    #    #    #    #    #   #   #
+     #     #    #    #    #    #   #    #
+      #    #    #    #    #    #   #    #
+     #    #     #   #     #     #    #   #
+     #    #    #    #     #     #    #    #
+      #    #    #    #    #     #    #     #
+      #    #    #    #    #     #     #      #
+     #    #    #    #     #      #      #     #
+    #     #    #     #   #       #      #     #
+   #     #     #     #   #        #     #     #
+  #     #     #      #    #       #     #     #
+   #     #     #      #     #      #   #     #
+
+
+from jinja2 import Template
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+import os
+from natsort import natsorted
+from scipy.signal import find_peaks
+import json
+import librosa
+from pathlib import Path
+import warnings
+import pywt
+import scipy.signal
+from scipy.interpolate import interp1d
+from scipy.signal import savgol_filter
+import networkx as nx
+import time
+from datetime import datetime
+import webbrowser
+import textwrap
+from bokeh.plotting import figure
+from bokeh.layouts import gridplot
+from bokeh.models import ColumnDataSource, HoverTool, TapTool, CustomJS
+from bokeh.io import output_file, save, show
+from bokeh.embed import file_html
+from bokeh.resources import CDN
+import json
+import importlib
+import sys
+import csv 
+import re
+import math 
+import random
+
+# from jellyfish_dynamite import save_jellyfish_template # Not used - replaced with other save functions
+
+import jelly_funcs as jelfun
+importlib.reload(jelfun)
+
+# 2453 [58] has fewest number of chirps. 70 directories total. 
+slicedir = Path('tranche/slices')
+all_slicedirs=jelfun.get_subdir_pathlist(slicedir) 
+
+daily_dir = jelfun.make_daily_directory()
+
+warnings.filterwarnings("ignore", message="n_fft=.* is too large for input signal of length=.*")
+
+def setup_matplotlib_backend():
+    """Smart matplotlib backend selection based on environment"""
+    import matplotlib
+    import sys
+    import os
+    
+    # Check if we're running in Flask/web environment
+    is_flask = any([
+        'flask' in sys.modules,
+        'werkzeug' in sys.modules,
+        os.environ.get('FLASK_ENV'),
+        os.environ.get('WERKZEUG_RUN_MAIN'),
+        'gunicorn' in sys.argv[0] if sys.argv else False
+    ])
+    
+    # Check if we're in a headless environment (no display)
+    is_headless = os.environ.get('DISPLAY') is None and os.name != 'nt'  # Not Windows
+    
+    if is_flask or is_headless:
+        # Use non-interactive backend for web/headless
+        matplotlib.use('Agg')
+        print("🌐 Using Agg backend (web/headless mode)")
+    else:
+        # Interactive mode - try to use best available backend
+        try:
+            import platform
+            if platform.system() == 'Darwin':  # macOS
+                try:
+                    matplotlib.use('macosx')
+                    print("🖥️  Using macOS backend (interactive mode)")
+                except:
+                    matplotlib.use('TkAgg')
+                    print("🖥️  Using TkAgg backend (interactive mode)")
+            else:  # Windows/Linux
+                matplotlib.use('TkAgg')
+                print("🖥️  Using TkAgg backend (interactive mode)")
+        except Exception as e:
+            print(f"⚠️  Backend selection failed: {e}, falling back to Agg")
+            matplotlib.use('Agg')
+
+# Call before importing pyplot
+setup_matplotlib_backend()
+import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib.widgets import Button
+
+# ==================== PSD CALCULATION METHODS ====================
+
+def cqt_based_psd(audio_path, bins_per_octave=36, n_bins=144, fmin=20.0, fmax=None, hop_length=512, n_fft=2048):
+    """Calculate PSD using Constant-Q Transform."""
+    y, sr = librosa.load(audio_path, sr=None)
+    
+    if fmax is None:
+        fmax = sr / 2
+    if hop_length is None:
+        hop_length = n_fft // 8
+    
+    C = librosa.cqt(y, sr=sr, fmin=fmin, n_bins=n_bins, 
+                    bins_per_octave=bins_per_octave, hop_length=hop_length)
+    power_spectrum = np.abs(C)**2
+    psd_mean = np.mean(power_spectrum, axis=1)
+    frequencies = librosa.cqt_frequencies(n_bins=n_bins, fmin=fmin, bins_per_octave=bins_per_octave)
+    
+    return frequencies, psd_mean
+
+def multi_resolution_psd(audio_path, fft_sizes=[512, 1024, 2048, 4096], n_fft=None, hop_length=None):
+    """Calculate PSD using multiple FFT window sizes."""
+    y, sr = librosa.load(audio_path, sr=None)
+    fft_sizes = sorted(fft_sizes)
+    
+    if n_fft is None:
+        n_fft = max(fft_sizes)
+    
+    cutoff_freqs = []
+    for i in range(len(fft_sizes) - 1):
+        cutoff = np.sqrt(sr / fft_sizes[i] * sr / fft_sizes[i+1])
+        cutoff_freqs.append(cutoff)
+    cutoff_freqs.append(sr/2)
+    
+    out_frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    out_psd = np.zeros_like(out_frequencies)
+    
+    for i, curr_n_fft in enumerate(fft_sizes):
+        curr_hop_length = hop_length if hop_length else curr_n_fft // 4
+        
+        stft_result = librosa.stft(y, n_fft=curr_n_fft, hop_length=curr_hop_length)
+        power_spectrum = np.abs(stft_result)**2
+        curr_psd = np.mean(power_spectrum, axis=1)
+        curr_freqs = librosa.fft_frequencies(sr=sr, n_fft=curr_n_fft)
+        
+        if i == 0:
+            freq_mask = (out_frequencies > cutoff_freqs[i])
+        elif i == len(fft_sizes) - 1:
+            freq_mask = (out_frequencies <= cutoff_freqs[i-1])
+        else:
+            freq_mask = (out_frequencies > cutoff_freqs[i-1]) & (out_frequencies <= cutoff_freqs[i])
+        
+        f_interp = interp1d(curr_freqs, curr_psd, kind='linear', 
+                           bounds_error=False, fill_value=(curr_psd[0], curr_psd[-1]))
+        out_psd[freq_mask] = f_interp(out_frequencies[freq_mask])
+        
+        if i == len(fft_sizes) - 1:
+            zero_mask = (out_psd == 0)
+            if np.any(zero_mask):
+                out_psd[zero_mask] = f_interp(out_frequencies[zero_mask])
+    
+    return out_frequencies, out_psd
+
+def chirplet_transform(audio_path, n_chirps=100, min_freq=20, max_freq=5000, n_fft=None):
+    """Simplified chirplet transform for adaptive time-frequency analysis."""
+    from scipy import signal
+    
+    y, sr = librosa.load(audio_path, sr=None)
+    
+    frequencies = np.logspace(np.log10(min_freq), np.log10(max_freq), n_chirps)
+    chirp_energies = np.zeros(n_chirps)
+    
+    for i, freq in enumerate(frequencies):
+        t = np.arange(0, len(y)/sr, 1/sr)
+        chirp = signal.chirp(t, f0=freq*0.8, f1=freq*1.2, t1=len(y)/sr, method='logarithmic')
+        window = signal.windows.hann(len(chirp))
+        chirp *= window
+        correlation = signal.correlate(y, chirp, mode='same')
+        chirp_energies[i] = np.max(np.abs(correlation)**2)
+    
+    return frequencies, chirp_energies
+
+def chirplet_transform_zero_padding(audio_path, n_chirps=100, min_freq=20, max_freq=5000, n_fft=2048):
+    """Simplified chirplet transform with zero-padding."""
+    from scipy import signal
+    
+    y, sr = librosa.load(audio_path, sr=None)
+    
+    if len(y) < n_fft:
+        y = np.pad(y, (0, n_fft - len(y)), 'constant')
+    
+    frequencies = np.logspace(np.log10(min_freq), np.log10(max_freq), n_chirps)
+    chirp_energies = np.zeros(n_chirps)
+    
+    for i, freq in enumerate(frequencies):
+        t = np.arange(0, len(y)/sr, 1/sr)
+        chirp = signal.chirp(t, f0=freq*0.8, f1=freq*1.2, t1=len(y)/sr, method='logarithmic')
+        window = signal.windows.hann(len(chirp))
+        chirp *= window
+        correlation = signal.correlate(y, chirp, mode='same')
+        chirp_energies[i] = np.max(np.abs(correlation)**2)
+    
+    return frequencies, chirp_energies
+
+def wavelet_packet_psd(audio_path, wavelet='sym8', max_level=8, hop_length=None, n_fft=2048):
+    """Calculate PSD using Wavelet Packet Decomposition."""
+    import pywt
+    
+    y, sr = librosa.load(audio_path, sr=None)
+    print(f"Original Wavelet - Signal length: {len(y)}, Sample rate: {sr}")
+    
+    # Calculate padded length for better frequency resolution
+    pad_length = 2**int(np.ceil(np.log2(len(y))))
+    y_padded = np.pad(y, (0, pad_length - len(y)), 'constant')
+    
+    # Calculate optimal level based on the amount of data and desired frequency resolution
+    optimal_level = min(int(np.log2(n_fft)), int(np.log2(len(y_padded))) - 2)
+    
+    if max_level > optimal_level:
+        print(f"WARNING: Adjusting max_level from {max_level} to {optimal_level} for better accuracy")
+        max_level = optimal_level
+    
+    if hop_length is None:
+        hop_length = n_fft // 4
+    
+    segment_size = n_fft
+    
+    if len(y) < segment_size:
+        y = np.pad(y, (0, segment_size - len(y)), 'constant')
+    
+    # Remove the try-except that was silently failing
+    wp = pywt.WaveletPacket(data=y, wavelet=wavelet, mode='symmetric', maxlevel=max_level)
+    nodes = [node for node in wp.get_level(max_level, 'natural')]
+    powers = [np.mean(np.abs(node.data)**2) for node in nodes]
+    powers = [max(p, 1e-10) for p in powers]
+    
+    # Define correction factors to fix frequency shift issue
+    correction_factors = {
+        'db4': 1.15,
+        'db8': 1.12,
+        'sym8': 1.05,
+        'coif5': 1.03
+    }
+    correction = correction_factors.get(wavelet, 1.0)
+    
+    freqs = []
+    nyquist = sr / 2
+    bands = 2**max_level
+    for i in range(bands):
+        low = i * nyquist / bands * correction
+        high = (i + 1) * nyquist / bands * correction
+        center = (low + high) / 2
+        freqs.append(center)
+    
+    if sum(powers) > 0:
+        powers = [p / sum(powers) for p in powers]
+    else:
+        raise ValueError(f"All wavelet powers are zero for file {audio_path}. This indicates a problem with the input signal or wavelet decomposition.")
+        
+    print(f"Original Wavelet - Success. PSD range: {min(powers):.2e} to {max(powers):.2e}")
+    return np.array(freqs), np.array(powers)
+
+def improved_wavelet_packet_psd(audio_path, wavelet='sym8', max_level=8, hop_length=None, n_fft=2048):
+    """Improved version of wavelet packet PSD with better frequency resolution."""
+    import pywt
+    
+    y, sr = librosa.load(audio_path, sr=None)
+    print(f"Improved Wavelet - Signal length: {len(y)}, Sample rate: {sr}")
+    
+    pow2_length = 2**int(np.ceil(np.log2(len(y))))
+    if len(y) < pow2_length:
+        y = np.pad(y, (0, pow2_length - len(y)), 'constant')
+    
+    optimal_level = min(int(np.log2(n_fft)), int(np.log2(len(y))) - 2)
+    if max_level > optimal_level:
+        print(f"WARNING: Adjusting max_level from {max_level} to {optimal_level} for better accuracy")
+        max_level = optimal_level
+    
+    out_freqs = np.linspace(20, sr/2, n_fft//2)
+    out_psd = np.zeros_like(out_freqs)
+    
+    wp = pywt.WaveletPacket(data=y, wavelet=wavelet, mode='symmetric', maxlevel=max_level)
+    nodes = [node for node in wp.get_level(max_level, 'natural')]
+    
+    if not nodes:
+        raise ValueError(f"No nodes found in wavelet packet decomposition for file {audio_path}. Check input signal and parameters.")
+    
+    energies = []
+    for node in nodes:
+        energy = np.sum(np.abs(node.data)**2)
+        energies.append(max(energy, 1e-20))
+    
+    total_energy = sum(energies)
+    if total_energy == 0:
+        raise ValueError(f"Total energy is zero for file {audio_path}. This indicates a problem with the input signal.")
+    
+    # Calculate actual frequency bands without any "correction"
+    bands = 2**max_level
+    band_width = sr / (2 * bands)
+    band_centers = np.array([(i * band_width + band_width/2) for i in range(bands)])
+    powers = np.array(energies) / total_energy
+    
+    from scipy import interpolate
+    if len(band_centers) > 1:
+        interp_func = interpolate.interp1d(
+            band_centers, powers, 
+            kind='linear',
+            bounds_error=False, 
+            fill_value=(powers[0], powers[-1])
+        )
+        out_psd = interp_func(out_freqs)
+    else:
+        out_psd = np.ones_like(out_freqs) * powers[0]
+    
+    from scipy.signal import savgol_filter
+    window_length = min(21, len(out_psd) // 5 * 2 + 1)
+    if window_length > 3 and window_length % 2 == 1:
+        out_psd = savgol_filter(out_psd, window_length, 2)
+    
+    out_psd = np.maximum(out_psd, 1e-10)
+    
+    print(f"Improved Wavelet - Success. PSD range: {np.min(out_psd):.2e} to {np.max(out_psd):.2e}")
+    return out_freqs, out_psd
+
+def stationary_wavelet_psd(audio_path, wavelet='sym8', max_level=6, n_fft=2048):
+    """Calculate PSD using Stationary Wavelet Transform (shift-invariant)."""
+    import pywt
+    
+    y, sr = librosa.load(audio_path, sr=None)
+    print(f"Stationary Wavelet - Signal length: {len(y)}, Sample rate: {sr}")
+    
+    target_length = int(2**np.ceil(np.log2(len(y))))
+    y_padded = np.pad(y, (0, target_length - len(y)), 'constant')
+    
+    optimal_level = min(int(np.log2(n_fft)), int(np.log2(len(y_padded))) - 3)
+    
+    if max_level > optimal_level:
+        print(f"WARNING: Adjusting max_level from {max_level} to {optimal_level}")
+        max_level = max(1, optimal_level)
+    
+    out_freqs = np.linspace(20, sr/2, n_fft//2)
+    out_psd = np.zeros_like(out_freqs)
+    
+    # Check if level is too high for the signal length
+    if max_level >= int(np.log2(len(y_padded))):
+        raise ValueError(f"max_level {max_level} is too high for signal length {len(y_padded)}. "
+                        f"Maximum possible level is {int(np.log2(len(y_padded))) - 1}")
+    
+    coeffs = pywt.swt(y_padded, wavelet, level=max_level)
+    
+    level_powers = []
+    level_freqs = []
+    
+    for i, (cA, cD) in enumerate(coeffs):
+        level = max_level - i
+        power = np.mean(np.abs(cD)**2)
+        
+        # Calculate actual frequency bands without any "correction"
+        band_width = sr / (2**(level+1))
+        low_freq = band_width
+        high_freq = 2 * band_width
+        center_freq = (low_freq + high_freq) / 2
+        
+        level_powers.append(power)
+        level_freqs.append(center_freq)
+    
+    power = np.mean(np.abs(coeffs[-1][0])**2)
+    center_freq = sr / (2**(max_level+1)) / 2
+    level_powers.append(power)
+    level_freqs.append(center_freq)
+    
+    total_power = sum(level_powers)
+    if total_power > 0:
+        level_powers = [p / total_power for p in level_powers]
+    else:
+        raise ValueError(f"Total power is zero for file {audio_path} using stationary wavelet transform. Check input signal.")
+    
+    for i, (freq, power) in enumerate(zip(level_freqs, level_powers)):
+        idx = np.abs(out_freqs - freq).argmin()
+        out_psd[idx] = power
+    
+    from scipy.interpolate import interp1d
+    valid_indices = np.where(out_psd > 0)[0]
+    if len(valid_indices) > 1:
+        f_interp = interp1d(
+            out_freqs[valid_indices], 
+            out_psd[valid_indices],
+            kind='linear', 
+            bounds_error=False, 
+            fill_value=(out_psd[valid_indices[0]], out_psd[valid_indices[-1]])
+        )
+        out_psd = f_interp(out_freqs)
+    
+    from scipy.signal import savgol_filter
+    window_length = min(21, len(out_psd) // 5 * 2 + 1)
+    if window_length > 3:
+        out_psd = savgol_filter(out_psd, window_length, 2)
+    
+    out_psd = np.maximum(out_psd, 1e-10)
+    
+    print(f"Stationary Wavelet - Success. PSD range: {np.min(out_psd):.2e} to {np.max(out_psd):.2e}")
+    return out_freqs, out_psd
+
+# ==================== SPECTRAL RIDGE DETECTION ====================
+
+def find_max_energy_ridge(spectrogram, frequencies, times):
+    """Find the frequency of maximum energy at each time slice."""
+    spec_db = 10 * np.log10(np.maximum(spectrogram, 1e-10))
+    max_freq_indices = np.argmax(spec_db, axis=0)
+    ridge_freqs = frequencies[max_freq_indices]
+    return times, ridge_freqs
+
+def plot_spectrogram_with_ridge(frequencies, times, spectrogram, show_ridge=True):
+    """Plot spectrogram with optional energy ridge overlay."""
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Plot spectrogram
+    spec_db = 10 * np.log10(np.maximum(spectrogram, 1e-10))
+    im = ax.imshow(spec_db.T, aspect='auto', origin='lower',
+                   extent=[frequencies[0], frequencies[-1], times[0], times[-1]],
+                   cmap='magma')
+    
+    # Add ridge if requested
+    if show_ridge:
+        ridge_times, ridge_freqs = find_max_energy_ridge(spectrogram, frequencies, times)
+        ax.plot(ridge_freqs, ridge_times, 'w--', linewidth=2, alpha=0.8, label='Max Energy Ridge')
+        ax.legend()
+    
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_ylabel('Time (s)')
+    ax.set_title(f'Spectrogram {"with Energy Ridge" if show_ridge else ""}')
+    plt.colorbar(im, ax=ax, label='Power (dB)')
+    
+    return fig, ax
+
+def find_spectral_veins(spectrogram, frequencies, times, num_veins=6, freq_window=50):
+    """Find veins by tracking bright regions in specific frequency bands."""
+    spec_db = 10 * np.log10(np.maximum(spectrogram, 1e-10))
+    
+    # Find strongest frequency regions across all time
+    overall_energy = np.mean(spec_db, axis=1)
+    
+    # Find peak frequency regions
+    from scipy.signal import find_peaks
+    peak_indices, _ = find_peaks(overall_energy, prominence=np.std(overall_energy)*0.3)
+    
+    # Sort by strength and take top num_veins
+    if len(peak_indices) > 0:
+        peak_strengths = overall_energy[peak_indices]
+        top_peak_indices = peak_indices[np.argsort(peak_strengths)[-num_veins:]][::-1]
+    else:
+        # Fallback: just use strongest frequencies
+        top_peak_indices = np.argsort(overall_energy)[-num_veins:][::-1]
+    
+    veins = []
+    
+    for i, center_freq_idx in enumerate(top_peak_indices):
+        center_freq = frequencies[center_freq_idx]
+        
+        # Define frequency window around this peak
+        freq_range = slice(max(0, center_freq_idx - freq_window//2), 
+                          min(len(frequencies), center_freq_idx + freq_window//2))
+        
+        vein_times = []
+        vein_freqs = []
+        
+        # For each time slice, find max energy within this frequency window
+        for t_idx in range(spec_db.shape[1]):
+            window_slice = spec_db[freq_range, t_idx]
+            if len(window_slice) > 0:
+                local_max_idx = np.argmax(window_slice)
+                global_freq_idx = freq_range.start + local_max_idx
+                
+                vein_times.append(times[t_idx])
+                vein_freqs.append(frequencies[global_freq_idx])
+        
+        veins.append({
+            'times': np.array(vein_times),
+            'freqs': np.array(vein_freqs),
+            'center_freq': center_freq,
+            'rank': i + 1
+        })
+    
+    return veins
+
+def plot_spectrogram_with_veins(frequencies, times, spectrogram, show_max_ridge=True, show_multi_veins=True, num_veins=5):
+    """Plot spectrogram with optional vein overlays."""
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Plot spectrogram
+    spec_db = 10 * np.log10(np.maximum(spectrogram, 1e-10))
+    im = ax.imshow(spec_db.T, aspect='auto', origin='lower',
+                   extent=[frequencies[0], frequencies[-1], times[0], times[-1]],
+                   cmap='magma')
+    
+    # Add max energy RIDGE (SOLID CYAN LINE)
+    if show_max_ridge: 
+        ridge_times, ridge_freqs = find_max_energy_ridge(spectrogram, frequencies, times) 
+        ax.plot(ridge_freqs, ridge_times, 'c-', linewidth=2.2, alpha=0.9)
+        
+        # Calculate visual slope (time vs frequency)
+        visual_slope, _ = np.polyfit(ridge_freqs, ridge_times, 1)
+        print(f"Max Energy Ridge visual slope: {visual_slope:.6f} s/Hz")
+    
+    # Add multiple spectral VEINS (DASHED COLORED LINES)
+    if show_multi_veins:
+        veins = find_spectral_veins(spectrogram, frequencies, times, num_veins)  # CORRECT FUNCTION
+        vein_colors = ['coral', 'yellow', 'magenta', 'lime', 'orange', 'teal', 'green', 'plum', 'orchid']
+            
+        for i, vein in enumerate(veins[:len(vein_colors)]):
+            if len(vein['freqs']) > 0:
+                # Draw the dashed line
+                ax.plot(vein['freqs'], vein['times'], '--', 
+                    color=vein_colors[i], linewidth=1.8, alpha=0.7)
+                
+                # Find point of maximum energy along this vein
+                vein_energies = []
+                for freq, time in zip(vein['freqs'], vein['times']):
+                    freq_idx = np.argmin(np.abs(frequencies - freq))
+                    time_idx = np.argmin(np.abs(times - time))
+                    energy = spectrogram[freq_idx, time_idx]
+                    vein_energies.append(energy)
+                
+                if vein_energies:
+                    max_energy_idx = np.argmax(vein_energies)
+                    max_freq = vein['freqs'][max_energy_idx]
+                    max_time = vein['times'][max_energy_idx]
+                    
+                    # Add a dot at the maximum energy point
+                    ax.plot(max_freq, max_time, 'o', 
+                        color=vein_colors[i], markersize=6, 
+                        markeredgecolor='white', markeredgewidth=1)
+                
+                visual_slope, _ = np.polyfit(vein['freqs'], vein['times'], 1)
+                print(f"Spectral Vein {vein['rank']} visual slope: {visual_slope:.6f} s/Hz")
+                
+    
+    
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_ylabel('Time (s)')
+    plt.colorbar(im, ax=ax, label='Power (dB)')
+    return fig, ax
+
+# ==================== INTERACTIVE PLOT CLASS ====================
+
+class EnhancedInteractiveHarmonicPlot:
+    def __init__(self, frequencies, psd, filename, ax, max_peaks=40, 
+             max_pairs=10, is_db_scale=True, peak_fmin=None, peak_fmax=None, 
+             plot_fmin=None, plot_fmax=None, height_percentile=0.5, prominence_factor=0.04,
+             min_width=0.5, method_name="FFT_DUAL", top_padding_db=10,
+             times=None, spectrogram=None, show_max_energy_ridge=True, 
+             show_spectral_veins=True, num_veins=5):
+        
+        self.frequencies = frequencies
+        self.psd = psd.copy()
+        self.filename = filename
+        self.ax = ax
+        self.max_peaks = max_peaks
+        self.max_pairs = max_pairs
+        self.selected_peaks = []
+        self.pairs = []
+        self.colors = ['red', 'green', 'purple', 'orange', 'brown']
+        self.click_tolerance = 150
+        self.is_db_scale = is_db_scale
+        self.height_percentile = height_percentile
+        self.prominence_factor = prominence_factor
+        self.min_width = min_width
+        self.method_name = method_name
+        self.last_click_time = 0
+        self.last_click_button = None
+        # Store spectrogram data if provided
+        self.is_spectrogram_db_scale = True  # Default to dB for spectrograms
+        self.has_spectrogram = times is not None and spectrogram is not None
+        if self.has_spectrogram:
+            self.times = times
+            # Store both linear and dB versions of spectrogram like PSD
+            self.spectrogram_linear = np.maximum(spectrogram.copy(), 1e-15)
+
+            # DEBUG: Check spectrogram before dB conversion
+            print(f"Spectrogram linear shape: {self.spectrogram_linear.shape}")
+            print(f"Spectrogram linear range: {np.min(self.spectrogram_linear)} to {np.max(self.spectrogram_linear)}")
+            print(f"Spectrogram has zeros: {np.any(self.spectrogram_linear == 0)}")
+            print(f"Spectrogram has negatives: {np.any(self.spectrogram_linear < 0)}")
+
+            self.spectrogram_db = 10 * np.log10(self.spectrogram_linear)
+            
+            # DEBUG: Check after dB conversion
+            print(f"Spectrogram dB type: {type(self.spectrogram_db)}")
+            print(f"Spectrogram dB shape: {self.spectrogram_db.shape}")
+            print(f"Spectrogram dB range: {np.min(self.spectrogram_db)} to {np.max(self.spectrogram_db)}")
+            print(f"Spectrogram dB has inf: {np.any(np.isinf(self.spectrogram_db))}")
+            print(f"Spectrogram dB has nan: {np.any(np.isnan(self.spectrogram_db))}")
+
+            # For backward compatibility, keep original as linear
+            self.spectrogram = self.spectrogram_linear.copy()
+        else:
+            self.times = None
+            self.spectrogram = None
+            self.spectrogram_linear = None
+            self.spectrogram_db = None
+        
+        # Moved out of the else loop to make sure ridge and veins are visible!
+        self.show_max_energy_ridge = show_max_energy_ridge
+        self.ridge_line = None
+        self.show_spectral_veins = show_spectral_veins
+        self.num_veins = num_veins
+        self.spectral_vein_lines = []
+            
+        ''' 
+        # Legacy Conversion Stuff
+        # # Convert to dB scale if needed
+        # if is_db_scale:
+        #     psd_for_db = np.maximum(self.psd, 1e-10)
+        #     self.psd_db = 10 * np.log10(psd_for_db)
+        # else:
+        #     self.psd_db = self.psd
+        # self.original_psd = psd.copy()
+        # # New scale conversion psd calculation methods: 
+        # self.psd_linear = np.maximum(psd.copy(), 1e-15)  # Store linear version
+        # self.psd_db = 10 * np.log10(self.psd_linear)     # Calculate dB version
+        # #self.is_linear_scale = not is_db_scale           # Track current scale
+        # self.is_db_scale = is_db_scale                   # Track current scale
+        # self.current_psd = self.psd_db if is_db_scale else self.psd_linear
+        # self.original_psd = self.psd_linear.copy()
+        '''
+
+        # FIXED: Properly initialize both linear and dB scales
+        # Always store the original linear version
+        self.psd_linear = np.maximum(psd.copy(), 1e-15)  # Store linear version
+        self.original_psd = self.psd_linear.copy()       # Keep reference to original
+        
+        # Calculate dB version from linear
+        self.psd_db = 10 * np.log10(self.psd_linear)
+        
+        # Set current PSD based on scale preference
+        if is_db_scale:
+            self.current_psd = self.psd_db
+            self.psd = self.psd_db.copy()  # For backward compatibility
+        else:
+            self.current_psd = self.psd_linear
+            self.psd = self.psd_linear.copy()  # For backward compatibility
+
+        # Set frequency ranges
+        self.peak_fmin = peak_fmin if peak_fmin is not None else np.min(frequencies)
+        self.peak_fmax = peak_fmax if peak_fmax is not None else np.max(frequencies)
+        self.plot_fmin = plot_fmin if plot_fmin is not None else np.min(frequencies)
+        self.plot_fmax = plot_fmax if plot_fmax is not None else min(5000, np.max(frequencies))
+        
+        # Plot the PSD
+        self.line, = ax.plot(frequencies, self.current_psd, 'k-', alpha=0.7)
+        
+        # Y-LIMITS
+        # Calculate and store y-limits for both scales
+        self._calculate_ylimits(top_padding_db)
+        # Set initial y-limits based on current scale
+        if self.is_db_scale:
+            ax.set_ylim(self.ylim_db)
+        else:
+            ax.set_ylim(self.ylim_linear)
+        
+        '''
+        # ax.autoscale(axis='y', tight=True)
+        # y_min, y_max = ax.get_ylim()
+        # ax.set_ylim(y_min, y_max + top_padding_db)
+        # Padding moved to _calculate_ylimits()
+        # Padding adjustment for linear vs. db scales
+        # if self.is_db_scale:
+        #     ax.set_ylim(y_min, y_max + top_padding_db)
+        # else:
+        #     linear_padding = (y_max - y_min) * 0.1  # 10% padding for linear
+        #     ax.set_ylim(y_min, y_max + linear_padding)
+        '''
+
+        # X-LIMITS
+        ax.set_xlim(self.plot_fmin, self.plot_fmax)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel('Frequency (Hz)')
+        ax.set_ylabel('PSD (dB)' if is_db_scale else 'PSD (linear)')
+        title_scale = "(dB)" if is_db_scale else "(linear)"
+        ax.set_title(f"{filename} [{self.peak_fmin}-{self.peak_fmax} Hz] >> {self.method_name} {title_scale}")
+        
+        # Find peaks using the current scale
+        peak_freq_mask = (frequencies >= self.peak_fmin) & (frequencies <= self.peak_fmax)
+        peak_detection_freqs = frequencies[peak_freq_mask]
+
+        # Use dB scale for peak detection for consistency
+        peak_detection_psd = self.psd_db[peak_freq_mask]
+        
+        # Adaptive peak detection
+        min_desired_peaks = min(10, self.max_peaks)
+        current_height_percentile = self.height_percentile
+        current_prominence_factor = self.prominence_factor
+        
+        all_peaks_indices = []
+        peak_properties = {}
+        
+        while len(all_peaks_indices) < min_desired_peaks and current_height_percentile > 0.2:
+            all_peaks_indices, peak_properties = find_peaks(
+                peak_detection_psd, 
+                height=np.percentile(peak_detection_psd, current_height_percentile*100),
+                prominence=current_prominence_factor*np.std(peak_detection_psd),
+                width=max(self.min_width, 1.0)
+            )
+            
+            if len(all_peaks_indices) < min_desired_peaks:
+                current_height_percentile -= 0.05
+                current_prominence_factor /= 1.5
+        
+        # Calculate peak widths
+        self.freq_resolution = frequencies[1] - frequencies[0] if len(frequencies) > 1 else 1
+        if 'widths' in peak_properties and len(peak_properties['widths']) > 0:
+            self.peak_widths = peak_properties['widths'] * self.freq_resolution
+        else:
+            self.peak_widths = np.zeros(len(all_peaks_indices))
+        
+        # Map to original frequency indices
+        peak_indices_in_original = np.where(peak_freq_mask)[0][all_peaks_indices]
+        
+        # Limit to max_peaks
+        if len(peak_indices_in_original) > self.max_peaks:
+            peak_prominences = np.array([self.psd_db[i] for i in peak_indices_in_original])
+            top_indices = np.argsort(peak_prominences)[::-1][:self.max_peaks]
+            peak_indices_in_original = peak_indices_in_original[top_indices]
+            if len(self.peak_widths) == len(all_peaks_indices):
+                self.peak_widths = self.peak_widths[top_indices]
+        
+        self.peak_freqs = frequencies[peak_indices_in_original]
+        self.peak_powers = self.current_psd[peak_indices_in_original]
+
+        # Plot peaks - store reference for updates
+        self.grey_peaks_line, = ax.plot(self.peak_freqs, self.peak_powers, 'o', color='gray', markersize=4, alpha=0.5, picker=5)
+
+        # Add vertical lines for peaks
+        self.all_peak_lines = []
+        for freq in self.peak_freqs:
+            vline = ax.axvline(x=freq, color='pink', linestyle='--', 
+                            alpha=0.6, linewidth=0.5)
+            self.all_peak_lines.append(vline)
+        
+        # Initialize interaction variables
+        self.fig = ax.figure
+        self.cid = self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+        self.kid = self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+        
+        self.peak_labels = []
+        self.selected_markers = []
+        self.pair_lines = []
+        self.pair_markers = []
+        self.width_markers = []
+        self.legend_text = []
+        self.graph = nx.Graph() 
+        self.fig.canvas.draw_idle()
+
+    def _calculate_ylimits(self, top_padding_db=10):
+        """Calculate and store y-limits for both dB and linear scales"""
+        # Calculate limits for dB scale
+        db_min, db_max = np.min(self.psd_db), np.max(self.psd_db)
+        self.ylim_db = (db_min, db_max + top_padding_db)
+        
+        # Calculate limits for linear scale
+        linear_min, linear_max = np.min(self.psd_linear), np.max(self.psd_linear)
+        linear_padding = (linear_max - linear_min) * 0.1  # 10% padding
+        self.ylim_linear = (linear_min, linear_max + linear_padding)
+
+    def toggle_scale(self):
+        """Toggle between dB and linear scale - with peak updates"""
+        self.is_db_scale = not self.is_db_scale
+        self.current_psd = self.psd_db if self.is_db_scale else self.psd_linear
+        
+        # Update the main line
+        self.line.set_ydata(self.current_psd)
+
+        # Update y-axis limits to appropriate scale
+        if self.is_db_scale:
+            self.ax.set_ylim(self.ylim_db)
+        else:
+            self.ax.set_ylim(self.ylim_linear)
+
+        # Update labels
+        ylabel = 'PSD (dB)' if self.is_db_scale else 'PSD (linear)'
+        self.ax.set_ylabel(ylabel)
+        
+        scale_text = "(dB)" if self.is_db_scale else "(linear)"
+        title = self.ax.get_title()
+        if "(dB)" in title or "(linear)" in title:
+            title = title.replace("(dB)", scale_text).replace("(linear)", scale_text)
+        self.ax.set_title(title)
+
+        # Update peak powers for current scale
+        if hasattr(self, 'peak_freqs') and len(self.peak_freqs) > 0:
+            peak_indices = [np.argmin(np.abs(self.frequencies - f)) for f in self.peak_freqs]
+            self.peak_powers = self.current_psd[peak_indices]
+
+        # Find and update the grey peak marker dots
+        if hasattr(self, 'grey_peaks_line'):
+            self.grey_peaks_line.set_ydata(self.peak_powers)
+
+        # Update all interactive elements
+        self.update_display()  # This redraws all selected peaks, pairs, and lines
+        self.fig.canvas.draw_idle()
+        
+        print(f"Toggled to {'dB' if self.is_db_scale else 'linear'} scale")
+
+    def get_current_peak_power(self, freq):
+        """Get peak power in current scale"""
+        idx = np.argmin(np.abs(self.peak_freqs - freq))
+        return self.peak_powers[idx]
+
+    def find_nearest_peak(self, x, y):
+        """Find the nearest peak to the clicked position."""
+        if len(self.peak_freqs) == 0:
+            return None
+        
+        distances = np.abs(self.peak_freqs - x)
+        nearest_idx = np.argmin(distances)
+        
+        if distances[nearest_idx] < self.click_tolerance:
+            return nearest_idx
+        return None
+
+    def on_click(self, event):
+        """Handle mouse click events."""
+        if event.inaxes != self.ax:
+            return
+        
+        current_time = time.time()
+        is_double_click = False
+        is_triple_click = False
+
+        if hasattr(self, 'last_click_time') and hasattr(self, 'last_click_button'):
+            time_diff = current_time - self.last_click_time
+            
+            if hasattr(self, 'double_click_time') and time_diff < 0.3 and event.button == self.last_click_button:
+                time_since_double = current_time - self.double_click_time
+                if time_since_double < 0.5:
+                    is_triple_click = True
+                    print("Triple click detected!")
+            elif time_diff < 0.3 and event.button == self.last_click_button:
+                is_double_click = True
+                self.double_click_time = current_time
+
+        self.last_click_time = current_time
+        self.last_click_button = event.button
+
+        # Handle left click events
+        if event.button == 1:  # Left click
+            if is_triple_click:  # Remove ALL nodes and pairs
+                node_count = len(self.graph.nodes())
+                pair_count = len(self.pairs)
+                
+                self.graph.clear()
+                self.pairs = []
+                self.selected_peaks = []
+                
+                for _, label in self.peak_labels:
+                    if hasattr(label, 'remove'):
+                        label.remove()
+                self.peak_labels = []
+                
+                print(f"Triple-click: Removed all {node_count} nodes and {pair_count} pairs")
+                
+            elif is_double_click:  # Remove point and any pairs it's part of
+                peak_idx = self.find_nearest_peak(event.xdata, event.ydata)
+                if peak_idx is not None:
+                    freq = self.peak_freqs[peak_idx]
+                    power = self.peak_powers[peak_idx]
+                    
+                    pairs_to_remove = []
+                    for pair_idx, pair in enumerate(self.pairs):
+                        if abs(pair['f0'] - freq) < self.click_tolerance or abs(pair['f1'] - freq) < self.click_tolerance:
+                            pairs_to_remove.append(pair_idx)
+                    
+                    if self.graph.has_node(freq):
+                        connected_nodes = list(self.graph.neighbors(freq))
+                        self.graph.remove_node(freq)
+                        print(f"Removed node {freq:.1f} Hz with {len(connected_nodes)} connections")
+                    
+                    for pair_idx in sorted(pairs_to_remove, reverse=True):
+                        other_freq = self.pairs[pair_idx]['f1'] if abs(self.pairs[pair_idx]['f0'] - freq) < self.click_tolerance else self.pairs[pair_idx]['f0']
+                        if other_freq not in self.selected_peaks:
+                            self.selected_peaks.append(other_freq)
+                        self.pairs.pop(pair_idx)
+                        print(f"Removed pair containing {freq:.1f} Hz, kept other peak")
+                    
+                    if freq in self.selected_peaks:
+                        self.selected_peaks.remove(freq)
+                        self.remove_peak_label(freq)
+                        print(f"Removed selected peak at {freq:.1f} Hz")
+                    
+            else:  # Single left click - add point
+                peak_idx = self.find_nearest_peak(event.xdata, event.ydata)
+                if peak_idx is not None:
+                    freq = self.peak_freqs[peak_idx]
+                    power = self.peak_powers[peak_idx]
+                    
+                    if freq not in self.selected_peaks:
+                        self.selected_peaks.append(freq)
+                        
+                        if not self.graph.has_node(freq):
+                            self.graph.add_node(freq, power=power)
+                            print(f"Added peak {freq:.1f} Hz to graph")
+                        
+                        marker, = self.ax.plot(freq, power, 'o', color='blue', 
+                                            markersize=8, markeredgecolor='black')
+                        self.selected_markers.append(marker)
+                        
+                        self.add_peak_label(freq, power)
+                        print(f"Added peak at {freq:.1f} Hz")
+
+        # Handle right click events
+        elif event.button == 3:  # Right click
+            if is_triple_click:  # Remove ALL edges but keep nodes
+                edge_count = len(self.graph.edges())
+                pair_count = len(self.pairs)
+                
+                nodes = list(self.graph.nodes(data=True))
+                
+                for edge in list(self.graph.edges()):
+                    self.graph.remove_edge(*edge)
+                
+                self.pairs = []
+                
+                for node, _ in nodes:
+                    if node not in self.selected_peaks:
+                        self.selected_peaks.append(node)
+                
+                print(f"Triple-click: Removed all {edge_count} edges and {pair_count} pairs, kept {len(nodes)} nodes")
+                
+            elif is_double_click:  # Remove pair
+                peak_idx = self.find_nearest_peak(event.xdata, event.ydata)
+                if peak_idx is not None:
+                    freq = self.peak_freqs[peak_idx]
+                    
+                    for pair_idx, pair in enumerate(self.pairs):
+                        if abs(pair['f0'] - freq) < self.click_tolerance or abs(pair['f1'] - freq) < self.click_tolerance:
+                            f0, f1 = pair['f0'], pair['f1']
+                            
+                            self.pairs.pop(pair_idx)
+                            
+                            if f0 not in self.selected_peaks:
+                                self.selected_peaks.append(f0)
+                            if f1 not in self.selected_peaks:
+                                self.selected_peaks.append(f1)
+                            
+                            if self.graph.has_edge(f0, f1):
+                                self.graph.remove_edge(f0, f1)
+                                print(f"Removed graph edge between {f0:.1f} Hz and {f1:.1f} Hz")
+                            
+                            print(f"Removed pair containing {freq:.1f} Hz, kept peaks")
+                            break
+                            
+            else:  # Single right click - create pair
+                if len(self.selected_peaks) >= 2 and len(self.pairs) < self.max_pairs:
+                    f1 = self.selected_peaks[-2]
+                    f2 = self.selected_peaks[-1]
+                    
+                    f0, f1 = sorted([f1, f2])
+                    
+                    color = self.colors[len(self.pairs) % len(self.colors)]
+                    self.pairs.append({'f0': f0, 'f1': f1, 'color': color})
+                    
+                    ratio = f1 / f0
+                    self.graph.add_edge(f0, f1, color=color, ratio=ratio)
+                    print(f"Created edge in graph: {f0:.1f} Hz <-> {f1:.1f} Hz (ratio: {ratio:.3f})")
+                    
+                    for peak in [f0, f1]:
+                        if peak in self.selected_peaks:
+                            self.selected_peaks.remove(peak)
+                    
+                    print(f"Created pair: {f0:.1f} Hz and {f1:.1f} Hz, ratio: {f1/f0:.3f}")
+        
+        self.update_display()
+
+    def on_key(self, event):
+        """Handle key press events."""
+        if event.key == 'c':  # Clear current selections
+            self.selected_peaks = []
+        elif event.key == 'r':  # Reset everything
+            self.selected_peaks = []
+            self.pairs = []
+            self.graph.clear()
+            print("Reset all pairs, selections, and graph data")
+        elif event.key == 'a':  # Create fully connected graph
+            self._create_fully_connected_graph()
+            print("Created fully connected graph of selected points")
+        elif event.key == 'm':  # Matrix view
+            self._show_matrix_debug()
+        elif event.key == 'd':  # Toggle db scale
+            self.toggle_scale()
+        elif event.key == 'e':  # Toggle spectral ridge
+            self.toggle_max_energy_ridge()
+        elif event.key == 'v':  # Toggle spectral veins
+            self.toggle_spectral_veins()
+
+        self.update_display()
+
+    def _create_fully_connected_graph(self):
+        """Create a fully connected graph from all selected peaks and existing nodes."""
+        nodes_to_connect = set(self.graph.nodes())
+        for freq in self.selected_peaks:
+            nodes_to_connect.add(freq)
+        
+        nodes_list = sorted(list(nodes_to_connect))
+        num_nodes = len(nodes_list)
+        
+        if num_nodes < 2:
+            print("Need at least 2 points to create connections")
+            return
+        
+        print(f"Creating fully connected graph with {num_nodes} nodes")
+        
+        edges_added = 0
+        for i in range(num_nodes):
+            for j in range(i+1, num_nodes):
+                f0 = nodes_list[i]
+                f1 = nodes_list[j]
+                
+                if self.graph.has_edge(f0, f1):
+                    continue
+                
+                ratio = f1 / f0
+                color_idx = edges_added % len(self.colors)
+                color = self.colors[color_idx]
+                
+                self.graph.add_edge(f0, f1, color=color, ratio=ratio)
+                
+                if len(self.pairs) < self.max_pairs:
+                    self.pairs.append({'f0': f0, 'f1': f1, 'color': color})
+                
+                edges_added += 1
+        
+        for freq in list(self.selected_peaks):
+            for pair in self.pairs:
+                if abs(pair['f0'] - freq) < self.click_tolerance or abs(pair['f1'] - freq) < self.click_tolerance:
+                    if freq in self.selected_peaks:
+                        self.selected_peaks.remove(freq)
+                    break
+        
+        print(f"Added {edges_added} new connections to the graph")
+
+    def _show_matrix_debug(self):
+        """Show a debug representation of the relationship matrix."""
+        if not self.graph.nodes():
+            print("No nodes in graph - cannot create matrix")
+            return
+            
+        nodes = sorted(self.graph.nodes())
+        print(f"Graph contains {len(nodes)} nodes: {[f'{n:.1f}' for n in nodes]}")
+        
+        print("\nFrequency ratio matrix:")
+        print("   " + "".join(f"{n:8.0f} " for n in nodes))
+        print("   " + "--------" * len(nodes))
+        
+        for i, n1 in enumerate(nodes):
+            row = f"{n1:4.0f}|"
+            for j, n2 in enumerate(nodes):
+                if i == j:
+                    row += f"{1.0:8.3f} "
+                elif self.graph.has_edge(n1, n2):
+                    edge_data = self.graph.get_edge_data(n1, n2)
+                    ratio = edge_data.get('ratio', n2/n1)
+                    row += f"{ratio:8.3f} "
+                else:
+                    row += "        - "
+            print(row)
+        
+        print("\nEdges:")
+        for edge in self.graph.edges(data=True):
+            n1, n2, data = edge
+            print(f"Edge: {n1:.1f} Hz <-> {n2:.1f} Hz, ratio: {data.get('ratio', n2/n1):.3f}")
+
+    # def add_peak_label(self, freq, power):
+    #     """Add a label next to a peak showing its frequency."""
+    #     label = self.ax.text(freq + -100, power + 4, f"{freq:.0f}", 
+    #                     fontsize=10, color='blue', 
+    #                     verticalalignment='center')
+    #     self.peak_labels.append((freq, label))
+
+    def add_peak_label(self, freq, power):
+        """Add a label next to a peak showing its frequency."""
+        if self.is_db_scale:
+            offset = 4  # dB offset
+        else:
+            offset = power * 0.05  # 5% of power for linear
+        
+        label = self.ax.text(freq + -100, power + offset, f"{freq:.0f}", 
+                        fontsize=10, color='blue', 
+                        verticalalignment='center')
+        self.peak_labels.append((freq, label))
+
+    def add_width_marker(self, freq, power, width):
+        """Add a horizontal line showing the width of a peak."""
+        if width > 0:
+            half_width = width / 2
+            width_line, = self.ax.plot([freq - half_width, freq + half_width], 
+                                [power - 3, power - 3],
+                                '-', color='lightgray', linewidth=2.0)
+            self.width_markers.append(width_line)
+
+    def remove_peak_label(self, freq):
+        """Remove the label for a specific frequency."""
+        for i, (peak_freq, label) in enumerate(self.peak_labels):
+            if abs(peak_freq - freq) < self.click_tolerance:
+                label.remove()
+                self.peak_labels.pop(i)
+                return
+
+    def get_graph_data(self):
+        """Return a serializable representation of the graph data."""
+        data = {"nodes": [], "edges": []}
+        
+        for node in self.graph.nodes(data=True):
+            node_id, attrs = node
+            data["nodes"].append({
+                "id": float(node_id),
+                "frequency": float(node_id),
+                "power": attrs.get("power", 0)
+            })
+        
+        for edge in self.graph.edges(data=True):
+            n1, n2, attrs = edge
+            data["edges"].append({
+                "source": float(n1),
+                "target": float(n2),
+                "ratio": attrs.get("ratio", float(n2)/float(n1)),
+                "color": attrs.get("color", "red")
+            })
+        
+        return data
+
+    def update_display(self):
+        """Update the visual display of the plot."""
+        # Clear old markers and lines
+        for marker in self.selected_markers:
+            if marker in self.ax.lines:
+                marker.remove()
+        for line in self.pair_lines:
+            if hasattr(line, 'remove'):
+                line.remove()
+        for marker in self.pair_markers:
+            if marker in self.ax.lines:
+                marker.remove()
+        for marker in self.width_markers:
+            if hasattr(marker, 'remove'):
+                marker.remove()
+
+        # Clear vertical lines for all peaks
+        if hasattr(self, 'all_peak_lines'):
+            for line in self.all_peak_lines:
+                if hasattr(line, 'remove'):
+                    line.remove()
+            self.all_peak_lines = []
+
+        # Clear all peak labels
+        for _, label in self.peak_labels:
+            if hasattr(label, 'remove'):
+                label.remove()
+        self.peak_labels = []
+        
+        self.selected_markers = []
+        self.pair_lines = []
+        self.pair_markers = []
+        self.width_markers = []
+
+        # Draw vertical lines for ALL peaks
+        for freq in self.peak_freqs:
+            vline = self.ax.axvline(x=freq, color='pink', linestyle='--', 
+                                alpha=0.6, linewidth=0.5, zorder=-3)
+            if not hasattr(self, 'all_peak_lines'):
+                self.all_peak_lines = []
+            self.all_peak_lines.append(vline)
+
+        # # Draw selected peaks
+        # for freq in self.selected_peaks:
+        #     idx = np.argmin(np.abs(self.peak_freqs - freq))
+        #     power = self.peak_powers[idx]
+        #     marker, = self.ax.plot(freq, power, 'o', color='blue', 
+        #                         markersize=8, markeredgecolor='black')
+        #     self.selected_markers.append(marker)
+            
+        #     self.add_peak_label(freq, power)
+            
+        #     if idx < len(self.peak_widths):
+        #         self.add_width_marker(freq, power, self.peak_widths[idx])
+
+        # Draw selected peaks (using current scale)
+        for freq in self.selected_peaks:
+            # Get power in current scale
+            freq_idx = np.argmin(np.abs(self.frequencies - freq))
+            if self.is_db_scale:
+                power = self.psd_db[freq_idx]
+            else:
+                power = self.psd_linear[freq_idx]
+            
+            marker, = self.ax.plot(freq, power, 'o', color='blue', 
+                                markersize=8, markeredgecolor='black')
+            self.selected_markers.append(marker)
+            
+            self.add_peak_label(freq, power)
+
+        # # Draw pairs
+        # paired_freqs = set()
+        
+        # for pair in self.pairs:
+        #     f0, f1 = pair['f0'], pair['f1']
+        #     paired_freqs.add(f0)
+        #     paired_freqs.add(f1)
+        #     color = pair['color']
+            
+        #     f0_idx = np.argmin(np.abs(self.peak_freqs - f0))
+        #     f1_idx = np.argmin(np.abs(self.peak_freqs - f1))
+        #     f0_power = self.peak_powers[f0_idx]
+        #     f1_power = self.peak_powers[f1_idx]
+            
+        #     # Draw markers
+        #     m1, = self.ax.plot(f0, f0_power, 'o', color='blue', markersize=8, 
+        #                     markeredgecolor='black')
+        #     m2, = self.ax.plot(f1, f1_power, 'o', color='blue', markersize=8, 
+        #                     markeredgecolor='black')
+        #     self.pair_markers.extend([m1, m2])
+            
+        #     # Add labels for paired peaks
+        #     self.add_peak_label(f0, f0_power)
+        #     self.add_peak_label(f1, f1_power)
+            
+        #     # Add width markers for paired peaks
+        #     if f0_idx < len(self.peak_widths):
+        #         self.add_width_marker(f0, f0_power, self.peak_widths[f0_idx])
+        #     if f1_idx < len(self.peak_widths):
+        #         self.add_width_marker(f1, f1_power, self.peak_widths[f1_idx])
+            
+        #     # Draw connecting line
+        #     line, = self.ax.plot([f0, f1], [f0_power, f1_power], '-', 
+        #                     color=color, alpha=0.5, linewidth=1.3)
+        #     self.pair_lines.append(line)
+            
+        #     # Draw vertical lines
+        #     vline1 = self.ax.axvline(f0, color=color, linestyle='--', alpha=0.7)
+        #     vline2 = self.ax.axvline(f1, color=color, linestyle='--', alpha=0.7)
+        #     self.pair_lines.extend([vline1, vline2])
+
+        # Draw pairs (using current scale)
+        for pair in self.pairs:
+            f0, f1 = pair['f0'], pair['f1']
+            color = pair['color']
+            
+            # Get powers in current scale
+            f0_idx = np.argmin(np.abs(self.frequencies - f0))
+            f1_idx = np.argmin(np.abs(self.frequencies - f1))
+            
+            if self.is_db_scale:
+                f0_power = self.psd_db[f0_idx]
+                f1_power = self.psd_db[f1_idx]
+            else:
+                f0_power = self.psd_linear[f0_idx]
+                f1_power = self.psd_linear[f1_idx]
+            
+            # Draw markers
+            m1, = self.ax.plot(f0, f0_power, 'o', color='blue', markersize=8, 
+                            markeredgecolor='black')
+            m2, = self.ax.plot(f1, f1_power, 'o', color='blue', markersize=8, 
+                            markeredgecolor='black')
+            self.pair_markers.extend([m1, m2])
+            
+            # Add labels
+            self.add_peak_label(f0, f0_power)
+            self.add_peak_label(f1, f1_power)
+            
+            # Draw connecting line
+            line, = self.ax.plot([f0, f1], [f0_power, f1_power], '-', 
+                            color=color, alpha=0.5, linewidth=1.3)
+            self.pair_lines.append(line)
+            
+            # Draw vertical lines
+            vline1 = self.ax.axvline(f0, color=color, linestyle='--', alpha=0.7)
+            vline2 = self.ax.axvline(f1, color=color, linestyle='--', alpha=0.7)
+            self.pair_lines.extend([vline1, vline2])
+        
+        # Draw spectral ridge if enabled
+        if self.show_max_energy_ridge and self.has_spectrogram:
+            self.draw_spectral_ridge()
+        
+        # Draw spectral energy veins if enabled
+        if self.show_spectral_veins and self.has_spectrogram:
+            self.draw_spectral_veins()
+
+        # Update legend
+        self.update_legend()
+        self.fig.canvas.draw_idle()
+
+    def update_legend(self):
+        """Update the legend display."""
+        # Remove old legend
+        for item in self.legend_text:
+            if hasattr(item, 'remove'):
+                item.remove()
+        
+        self.legend_text = []
+        
+        # Create legend text
+        x_offset = 1.02
+        y_start = 0.98
+        line_height = 0.08
+        
+        # Add legend entries for each pair
+        for i, pair in enumerate(self.pairs):
+            f0, f1 = pair['f0'], pair['f1']
+            ratio = f1 / f0
+            color = pair['color']
+            
+            y_pos = y_start - (i * 3 * line_height)
+            
+            # f0 entry
+            self.ax.plot([x_offset], [y_pos], 'o', color=color, 
+                    transform=self.ax.transAxes, markersize=8, 
+                    markeredgecolor='black', clip_on=False)
+            text = self.ax.text(x_offset + 0.05, y_pos, f'{f0:.0f}', 
+                            transform=self.ax.transAxes, verticalalignment='center',
+                            fontsize=9)
+            self.legend_text.append(text)
+            
+            # f1 entry
+            self.ax.plot([x_offset], [y_pos - line_height], 's', color=color, 
+                    transform=self.ax.transAxes, markersize=8, 
+                    markeredgecolor='black', clip_on=False)
+            text = self.ax.text(x_offset + 0.05, y_pos - line_height, f'{f1:.0f}', 
+                            transform=self.ax.transAxes, verticalalignment='center',
+                            fontsize=9)
+            self.legend_text.append(text)
+            
+            # Ratio entry
+            text = self.ax.text(x_offset + 0.05, y_pos - 2*line_height, f'ratio: {ratio:.2f}', 
+                            transform=self.ax.transAxes, verticalalignment='center',
+                            fontsize=9)
+            self.legend_text.append(text)
+
+    def draw_spectral_ridge(self):
+            """Draw spectral ridge line on the plot."""
+            # Remove old ridge line
+            if self.ridge_line is not None:
+                if self.ridge_line in self.ax.lines:
+                    self.ridge_line.remove()
+            
+            # Draw new ridge line
+            ridge_times, ridge_freqs = find_max_energy_ridge(
+                self.spectrogram_linear, self.frequencies, self.times
+            )
+            
+            self.ridge_line, = self.ax.plot(ridge_freqs, ridge_times, 'c--', 
+                                        linewidth=2, alpha=0.8, 
+                                        label='Spectral Ridge')
+
+    def toggle_max_energy_ridge(self):
+            """Toggle spectral ridge display."""
+            if not self.has_spectrogram:
+                print("No spectrogram available for ridge display")
+                return
+                
+            self.show_max_energy_ridge = not self.show_max_energy_ridge
+            print(f"Spectral ridges: {'ON' if self.show_max_energy_ridge else 'OFF'}")
+            self.update_display()
+
+    def draw_spectral_veins(self):
+        """Draw multiple spectral veins (dashed, different colors)."""
+        # Remove old vein lines
+        for vein_line in self.spectral_vein_lines:
+            if vein_line in self.ax.lines:
+                vein_line.remove()
+        self.spectral_vein_lines = []
+        
+        # Calculate new veins
+        veins = find_spectral_veins(
+            self.spectrogram_linear, self.frequencies, self.times, self.num_veins
+        )
+        
+        # Draw each vein with different style
+        vein_colors = ['cyan', 'yellow', 'magenta', 'lime', 'orange', 'blue']  # 6 colors for 6 veins
+        for i, vein in enumerate(veins):
+            if len(vein['freqs']) > 0:
+                color = vein_colors[i % len(vein_colors)]
+                
+                vein_line, = self.ax.plot(vein['freqs'], vein['times'], 
+                                        color=color, linestyle='--',
+                                        linewidth=1.8, alpha=0.7, 
+                                        label=f'Spectral Vein {vein["rank"]}')
+                self.spectral_vein_lines.append(vein_line)
+        
+        print(f"Drew {len(veins)} spectral veins")
+
+    def toggle_spectral_veins(self):
+        """Toggle multi spectral vein display."""
+        if not self.has_spectrogram:
+            print("No spectrogram available for vein display")
+            return
+            
+        self.show_spectral_veins = not self.show_spectral_veins
+        print(f"Spectral veins: {'ON' if self.show_spectral_veins else 'OFF'}")
+        self.update_display()
+
+# ==================== FILE SELECTION UTILITIES ====================
+
+def select_audio_files(directory_path, file_patterns=None, file_indices=None, 
+                      range_start=None, range_end=None, limit=None, 
+                      extensions=('.wav',), verbose=True):
+    """Select audio files from a directory with flexible filtering options."""
+    all_files = natsorted([f for f in os.listdir(directory_path) 
+                          if f.lower().endswith(extensions)])
+    
+    if verbose:
+        print(f"Found {len(all_files)} audio files in directory")
+    
+    selected = all_files
+    selection_desc = "all files"
+    
+    # Apply range selection if specified
+    if range_start is not None:
+        if range_end is None:
+            range_end = len(all_files) - 1
+        
+        range_start = max(0, min(range_start, len(all_files) - 1))
+        range_end = max(range_start, min(range_end, len(all_files) - 1))
+        
+        selected = all_files[range_start:range_end + 1]
+        selection_desc = f"files {range_start} to {range_end}"
+        
+        if verbose:
+            print(f"Range selection: {selection_desc} ({len(selected)} files)")
+    
+    # Apply specific indices if provided
+    if file_indices is not None:
+        valid_indices = [i for i in file_indices if 0 <= i < len(all_files)]
+        
+        if len(valid_indices) != len(file_indices) and verbose:
+            print(f"Warning: {len(file_indices) - len(valid_indices)} indices were out of range")
+        
+        selected = [all_files[i] for i in valid_indices]
+        selection_desc = f"files at indices {valid_indices}"
+        
+        if verbose:
+            print(f"Index selection: {len(selected)} files at specified indices")
+    
+    # Apply pattern filtering
+    if file_patterns is not None:
+        filtered = []
+        pattern_matches = {pattern: 0 for pattern in file_patterns}
+        
+        for filename in selected:
+            for pattern in file_patterns:
+                if pattern.lower() in filename.lower():
+                    filtered.append(filename)
+                    pattern_matches[pattern] += 1
+                    break
+        
+        selected = filtered
+        selection_desc = f"files matching patterns {file_patterns}"
+        
+        if verbose:
+            print(f"Pattern filtering: {len(selected)} files matched")
+            for pattern, count in pattern_matches.items():
+                print(f"  - '{pattern}': {count} matches")
+    
+    # Apply limit
+    if limit is not None and limit > 0:
+        original_count = len(selected)
+        selected = selected[:limit]
+        selection_desc = f"first {limit} of {selection_desc}"
+        
+        if verbose and len(selected) < original_count:
+            print(f"Limit applied: {len(selected)} of {original_count} files")
+    
+    if verbose:
+        print(f"Final selection: {len(selected)} files")
+        if len(selected) > 0:
+            print(f"Sample of selected files:")
+            for i, filename in enumerate(selected[:3]):
+                print(f"  {i}. {filename}")
+            if len(selected) > 3:
+                print(f"  ... and {len(selected) - 3} more files")
+    
+    return selected
+
+
+# ==================== MAIN ANALYSIS FUNCTIONS ====================
+
+def compare_methods_psd_analysis(audio_directory, max_cols=4, max_pairs=5, 
+                                # Legacy parameter for backward compatibility
+                                n_fft=None, hop_length=None, 
+                                # Dual-resolution parameters
+                                psd_n_fft=1024, spec_n_fft=512, 
+                                psd_hop_length=None, spec_hop_length=None, 
+                                peak_fmin=100, peak_fmax=6000,
+                                plot_fmin=100, plot_fmax=6000,
+                                height_percentile=0.6, prominence_factor=0.05,
+                                min_width=0.6, methods=None, 
+                                selected_files=None, use_db_scale=True, 
+                                num_veins=6):
+    """
+    Create an Interactive Spectral Analysis for all audio files, using multiple methods.
+    Each row displays a different audio file, and each column shows a different method.
+    
+    Args:
+        audio_directory: Path to directory containing .wav files
+        max_cols: Maximum number of columns in each row (methods)
+        max_pairs: Maximum number of pairs per spectrogram
+        n_fft: FFT window size for PSD calculation
+        psd_n_fft: FFT size for PSD calculation (frequency resolution)
+        spec_n_fft: FFT size for spectrogram (should be <= psd_n_fft for best results)
+        psd_hop_length: Time step for PSD calculation
+        spec_hop_length: Time step for spectrogram
+        peak_fmin: Minimum frequency for peak detection (Hz)
+        peak_fmax: Maximum frequency for peak detection (Hz)
+        plot_fmin: Minimum frequency to display in plot (Hz)
+        plot_fmax: Maximum frequency to display in plot (Hz)
+        height_percentile: Peak detection height percentile threshold
+        prominence_factor: Peak detection prominence factor
+        min_width: Minimum width for peak detection
+        methods: List of method names to use ["FFT_DUAL", "CQT", "Chirplet Zero", "Multi-Res"]
+        selected_files: List of filenames to process (if None, use all .wav files)
+        use_db_scale: If True, display PSD in dB scale; if False, use linear scale
+        
+    Returns:
+        Tuple of (figure, plots, save_function)
+    """
+
+    # Get audio files
+    if selected_files is None:
+        audio_files = natsorted([f for f in os.listdir(audio_directory) if f.endswith('.wav')])
+    else: 
+        audio_files = selected_files
+    
+    n_files = len(audio_files)
+    
+    if n_files == 0:
+        print("No .wav files found.")
+        return None, [], None
+    
+
+    # DEFAULT PARAMETER DICTIONARY
+    default_params = {
+        'psd_n_fft': psd_n_fft,
+        'psd_hop_length': psd_hop_length,
+        'spec_n_fft': spec_n_fft,
+        'spec_hop_length': spec_hop_length,
+        'plot_fmax': plot_fmax,
+        
+        # Legacy parameters for backward compatibility
+        'n_fft': psd_n_fft,  # Most methods expect this
+        'hop_length': psd_hop_length,  # Most methods expect this
+    }
+    print(f"Default parameters: {default_params}")
+
+
+    # Set default plot range if not specified
+    if plot_fmin is None:
+        plot_fmin = peak_fmin
+    
+    # Define the methods to use
+    if methods is None:
+        methods = ["FFT_DUAL", "Chirplet Zero"]  # Default to two common methods
+    
+
+    # METHOD FUNCTION DICTIONARY
+    method_funcs = {
+        "FFT_DUAL": lambda path: jelfun.calculate_psd_spectro(
+            path, 
+            psd_n_fft=default_params['psd_n_fft'],
+            psd_hop_length=default_params['psd_hop_length'],
+            spec_n_fft=default_params['spec_n_fft'],
+            spec_hop_length=default_params['spec_hop_length'],
+            use_dual_resolution=True,
+            verbose=True
+        ),
+        
+        # "FFT_BASIC": lambda path: jelfun.calculate_psd_spectro(
+        #     path, 
+        #     psd_n_fft=default_params['n_fft'],
+        #     psd_hop_length=default_params['hop_length'],
+        #     spec_n_fft=default_params['n_fft'],  # Same resolution for basic
+        #     spec_hop_length=default_params['hop_length'],  # Same resolution for basic
+        #     use_dual_resolution=False,  # Single resolution mode
+        #     verbose=True
+        # ),
+        
+        "CQT": lambda path: cqt_based_psd(
+            path, 
+            bins_per_octave=36, 
+            n_bins=150, 
+            fmin=600, 
+            fmax=default_params['plot_fmax'] * 1.2, 
+            hop_length=default_params['hop_length'],
+            n_fft=default_params['n_fft']
+        ),
+        
+        "Wavelet": lambda path: wavelet_packet_psd(
+            path, 
+            wavelet='sym8', 
+            max_level=6, 
+            hop_length=default_params['hop_length'],
+            n_fft=default_params['n_fft']
+        ),
+        
+        "Improved Wavelet": lambda path: improved_wavelet_packet_psd(
+            path, 
+            wavelet='sym8', 
+            max_level=6, 
+            hop_length=default_params['hop_length'],
+            n_fft=default_params['n_fft']
+        ),
+        
+        "Stationary Wavelet": lambda path: stationary_wavelet_psd(
+            path, 
+            wavelet='sym8', 
+            max_level=4, 
+            n_fft=default_params['n_fft']
+        ),
+        
+        "Chirplet": lambda path: chirplet_transform(
+            path, 
+            n_chirps=100, 
+            min_freq=20, 
+            max_freq=default_params['plot_fmax'] * 1.2, 
+            n_fft=default_params['n_fft']
+        ),
+        
+        "Chirplet Zero": lambda path: chirplet_transform_zero_padding(
+            path, 
+            n_chirps=100, 
+            min_freq=20, 
+            max_freq=default_params['plot_fmax'] * 1.2, 
+            n_fft=default_params['n_fft']
+        ),
+        
+        "Multi-Res": lambda path: multi_resolution_psd(
+            path, 
+            fft_sizes=[512, 1024, 2048, 4096], 
+            n_fft=default_params['n_fft'], 
+            hop_length=default_params['hop_length']
+        ),
+    }
+
+    # Filter to only use valid methods
+    valid_methods = [(name, method_funcs[name]) for name in methods if name in method_funcs]
+    n_methods = len(valid_methods)
+    
+    if n_methods == 0:
+        print("No valid methods specified.")
+        return None, [], None
+    
+    # Calculate grid dimensions
+    cols_per_row = min(n_methods, max_cols)
+    rows_per_file = 1 #int(np.ceil(n_methods / cols_per_row))
+    total_rows = n_files * rows_per_file
+    total_cols = cols_per_row
+    
+    # Create figure
+    fig, axs = plt.subplots(total_rows, total_cols, figsize=(5*total_cols, 4*rows_per_file*n_files))
+    
+    # Ensure axs is a 2D array even for single plot
+    if total_rows == 1 and total_cols == 1:
+        axs = np.array([[axs]])
+    elif total_rows == 1:
+        axs = axs.reshape(1, -1)
+    elif total_cols == 1:
+        axs = axs.reshape(-1, 1)
+    
+    # Get directory name
+    dir_short_name = os.path.basename(audio_directory)
+    
+    # Add a main title
+    fig.suptitle(f"PSD Analysis Methods Comparison - Dir: {dir_short_name}", fontsize=16)
+    
+    # Add instruction text
+    instruction_text = fig.text(0.08, 0.94, 
+        'LEFT-CLICK: Select peak\n'
+        'RIGHT-CLICK: Pair selected peaks\n'
+        'DOUBLE-CLICK: Remove point/pair\n'
+        'C key: Clear selections\n'
+        'R key: Reset all\n'
+        'D key: Toggle db scale view', 
+        verticalalignment='top',
+        bbox=dict(boxstyle='round', facecolor='lightblue', edgecolor='black', alpha=0.7),
+        fontsize=10)
+
+    # Create interactive plots
+    plots = []
+    
+    for file_idx, filename in enumerate(audio_files):
+        file_path = os.path.join(audio_directory, filename)
+        base_filename = os.path.splitext(filename)[0]
+        
+        # Starting row for this file
+        start_row = file_idx * rows_per_file
+        # Process each method for this file
+        for method_idx, (method_name, method_func) in enumerate(valid_methods):
+            # Calculate row and column for this plot
+            row = start_row + (method_idx // cols_per_row)
+            col = method_idx % cols_per_row
+            
+            # Skip if we're out of grid bounds
+            if row >= total_rows or col >= total_cols:
+                continue
+                
+            # Calculate PSD using the current method
+            try:
+                #frequencies, psd = method_func(file_path)
+                result = method_func(file_path)
+                if len(result) == 5:  # Support for dual resolution format
+                    psd_frequencies, spec_frequencies, times, spectrogram, psd = result
+                    frequencies = psd_frequencies  # Use PSD frequencies for peak detection
+                    times_arg = times
+                    spectrogram_arg = spectrogram
+                elif len(result) == 4:  # Original format with spectrogram
+                    frequencies, times, spectrogram, psd = result
+                    times_arg = times
+                    spectrogram_arg = spectrogram
+                else:  # Original format without spectrogram
+                    frequencies, psd = result
+                    times_arg = None
+                    spectrogram_arg = None
+
+                # Check for NaN or Inf values
+                if np.any(np.isnan(psd)) or np.any(np.isinf(psd)):
+                    print(f"Warning: NaN or Inf values detected in {method_name} for {filename}")
+                    psd = np.nan_to_num(psd, nan=1e-10, posinf=1.0, neginf=1e-10)
+                
+                # Ensure all values are positive for log scale
+                psd = np.maximum(psd, 1e-10)
+                
+                # Create plot with the results
+                ax = axs[row, col]
+                plot = EnhancedInteractiveHarmonicPlot(
+                    frequencies, psd, 
+                    f"{base_filename} ({method_name})", 
+                    ax, 
+                    max_pairs=max_pairs,
+                    is_db_scale=use_db_scale,
+                    peak_fmin=peak_fmin, 
+                    peak_fmax=peak_fmax,
+                    plot_fmin=plot_fmin, 
+                    plot_fmax=plot_fmax,
+                    height_percentile=height_percentile,
+                    prominence_factor=prominence_factor,
+                    min_width=min_width,
+                    method_name=method_name, 
+                    top_padding_db=10,
+                    times=times_arg,
+                    spectrogram=spectrogram_arg, 
+                    show_max_energy_ridge=True, # defaults to true, change to false to initialize off
+                    show_spectral_veins=True, # defaults to true, change to false to initialize off
+                    num_veins=6
+                )
+                plots.append(plot)
+
+            except Exception as e:
+                print(f"Error from compare_methods with {filename}, method {method_name}: {e}")
+                axs[row, col].text(0.5, 0.5, f"Error:\n{e}", transform=axs[row, col].transAxes,
+                                 horizontalalignment='center', verticalalignment='center')
+                axs[row, col].set_title(f"{base_filename} - {method_name} - Failed")
+
+    # Hide any unused subplots
+    for row in range(total_rows):
+        for col in range(total_cols):
+            if row >= n_files * rows_per_file or (row % rows_per_file * cols_per_row + col >= n_methods):
+                if row < axs.shape[0] and col < axs.shape[1]:
+                    axs[row, col].axis('off')
+    
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.80, right=0.85, hspace=0.4, wspace=0.3)
+    
+    # Add a custom save button
+    save_ax = fig.add_axes([0.92, 0.01, 0.07, 0.05])
+    save_button = Button(save_ax, 'Save')
+    
+    daily_dir = jelfun.make_daily_directory()
+    
+    def save_callback(event):
+        fig_path, data_path = save_figure_with_timestamp(fig, plots, 
+                                                        base_filename=f"psd_methods_comparison_nfft{n_fft}", 
+                                                        output_directory=f"{daily_dir}/jellyfish_dynamite")
+        print(f"Plot saved successfully!")
+    
+    save_button.on_clicked(save_callback)
+    
+    # Create specific save function for this figure
+    def save_this_figure(base_filename=f"psd_methods_comparison_nfft{n_fft}", output_directory=None):
+        return save_figure_with_timestamp(fig, plots, base_filename, output_directory)
+    
+    method_names_str = ", ".join(methods)
+    
+    print(f"Multi-method PSD analysis ready!")
+    print(f"Analyzing {n_files} files with methods: {method_names_str}")
+    print(f"Peak detection range: {peak_fmin}-{peak_fmax} Hz")
+    print(f"Plot display range: {plot_fmin}-{plot_fmax} Hz")
+    print("- Left-click on peaks to select them")
+    print("- Right-click to form pairs from the last two selected peaks")
+    print("- Double-click to remove a point or pair")  
+    print("- Press 'c' to clear current selections")
+    print("- Press 'r' to reset all pairs and selections")
+    
+    return fig, plots, save_this_figure, dir_short_name
+
+
+# ==================== HTML EXPORT FUNCTIONS ====================
+
+def create_interactive_html_plots(fig, plots, base_filename="psd_analysis", output_directory=None):
+    """Create an interactive HTML visualization using Plotly with working JavaScript."""
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+    except ImportError:
+        print("Plotly is required for HTML export. Install with: pip install plotly")
+        return None, None, None
+        
+    # Create a custom JSON encoder for NumPy types
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.number):
+                return obj.item()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return super().default(obj)
+    
+    # Use daily_dir as the default base directory if none provided
+    if output_directory is None:
+        daily_dir = jelfun.make_daily_directory()
+        output_directory = f"{daily_dir}/jellyfish_dynamite_html"
+    
+    # Create directory if it doesn't exist
+    os.makedirs(output_directory, exist_ok=True)
+    
+    # Determine grid dimensions
+    total_plots = len(plots)
+    n_cols = n_methods
+    n_rows = n_files
+    
+    # Calculate vertical spacing dynamically
+    if n_rows > 1:
+        v_spacing = min(0.15, 0.2 / (n_rows - 1))
+    else:
+        v_spacing = 0.15
+    
+    # Create plotly figure with subplots
+    plotly_fig = make_subplots(
+        rows=n_rows, 
+        cols=n_cols,
+        subplot_titles=[getattr(plot, 'filename', f"Plot {i+1}") for i, plot in enumerate(plots)],
+        vertical_spacing=v_spacing,
+        horizontal_spacing=0.08
+    )
+    
+    # Extract plot data for JavaScript
+    plot_data = []
+    for i, plot in enumerate(plots):
+        row = i // n_cols + 1
+        col = i % n_cols + 1
+        
+        plot_info = {
+            'plot_index': i,
+            'row': row,
+            'col': col,
+            'filename': getattr(plot, 'filename', f"Plot {i+1}"),
+            'click_tolerance': getattr(plot, 'click_tolerance', 333),
+            'max_pairs': getattr(plot, 'max_pairs', 3),
+            'colors': getattr(plot, 'colors', ['red', 'green', 'purple', 'orange', 'brown']),
+            'frequencies': plot.frequencies.tolist() if hasattr(plot.frequencies, 'tolist') else list(plot.frequencies),
+            
+            #'psd_db': plot.psd_db.tolist() if hasattr(plot.psd_db, 'tolist') else list(plot.psd_db),
+            #'peak_freqs': plot.peak_freqs.tolist() if hasattr(plot.peak_freqs, 'tolist') else list(plot.peak_freqs),
+            #'peak_powers': plot.peak_powers.tolist() if hasattr(plot.peak_powers, 'tolist') else list(plot.peak_powers),
+            
+            # FIXED: Always provide both scales
+            'psd_linear': plot.psd_linear.tolist(),  # Linear scale
+            'psd_db': plot.psd_db.tolist(),          # dB scale
+
+            'peak_freqs': plot.peak_freqs.tolist(),
+            
+            # FIXED: Calculate peak powers for both scales
+            'peak_powers_linear': [plot.psd_linear[np.argmin(np.abs(plot.frequencies - f))] for f in plot.peak_freqs],
+            'peak_powers_db': [plot.psd_db[np.argmin(np.abs(plot.frequencies - f))] for f in plot.peak_freqs],
+
+            'selected_peaks': [],
+            'pairs': [],
+            'current_scale': 'db'  # Add scale state tracking
+
+        }
+        plot_data.append(plot_info)
+        
+        # Add main PSD curve
+        plotly_fig.add_trace(
+            go.Scatter(
+                x=plot_info['frequencies'],
+                y=plot_info['psd_db'],
+                mode='lines',
+                name=f"psd_{i}",
+                line=dict(color='black', width=1.5),
+                showlegend=False
+            ),
+            row=row, col=col
+        )
+        
+        # Add detected peaks
+        plotly_fig.add_trace(
+            go.Scatter(
+                x=plot_info['peak_freqs'],
+                y=plot_info['peak_powers'],
+                mode='markers',
+                name=f"peaks_{i}",
+                marker=dict(color='gray', size=5, opacity=0.7),
+                showlegend=False
+            ),
+            row=row, col=col
+        )
+        
+        # Set axis properties
+        if hasattr(plot, 'plot_fmin') and hasattr(plot, 'plot_fmax'):
+            plotly_fig.update_xaxes(range=[plot.plot_fmin, plot.plot_fmax], row=row, col=col)
+        plotly_fig.update_xaxes(title_text="Frequency (Hz)", row=row, col=col)
+        plotly_fig.update_yaxes(title_text="PSD (dB)", row=row, col=col)
+    
+    # Update main layout
+    main_title = "Dir: {dir_name} - Interactive Spectral Analysis - create_interactive_html_plots"
+    plotly_fig.update_layout(
+        title=main_title,
+        height=max(600, 500 * n_rows),
+        width=500 * n_cols,
+        template="plotly_white",
+        margin=dict(l=50, r=50, t=100, b=50)
+    )
+    
+    # Create working JavaScript for interactivity with full visual features
+    js_code = textwrap.dedent(f"""
+        <script>
+        var plotData = {json.dumps(plot_data, cls=NumpyEncoder)};
+        var lastClickTime = 0;
+        var doubleClickTime = 0;
+
+        function selectPeak(plotIndex, peakIdx) {{
+            var plot = plotData[plotIndex];
+            var freq = plot.peak_freqs[peakIdx];
+            
+            if (plot.selected_peaks.indexOf(freq) === -1) {{
+                plot.selected_peaks.push(freq);
+                console.log('Selected peak at ' + freq.toFixed(1) + ' Hz');
+                updatePlot(plotIndex);
+            }}
+        }}
+
+        function removePeak(plotIndex, peakIdx) {{
+            var plot = plotData[plotIndex];
+            var freq = plot.peak_freqs[peakIdx];
+            
+            // Remove from selected peaks
+            var idx = plot.selected_peaks.indexOf(freq);
+            if (idx !== -1) {{
+                plot.selected_peaks.splice(idx, 1);
+            }}
+            
+            // Remove pairs containing this frequency
+            plot.pairs = plot.pairs.filter(function(pair) {{
+                return Math.abs(pair.f0 - freq) >= plot.click_tolerance && 
+                    Math.abs(pair.f1 - freq) >= plot.click_tolerance;
+            }});
+            
+            console.log('Removed peak at ' + freq.toFixed(1) + ' Hz');
+            updatePlot(plotIndex);
+        }}
+
+        function createPair(plotIndex) {{
+            var plot = plotData[plotIndex];
+            
+            if (plot.selected_peaks.length >= 2 && plot.pairs.length < plot.max_pairs) {{
+                var f1 = plot.selected_peaks[plot.selected_peaks.length - 2];
+                var f2 = plot.selected_peaks[plot.selected_peaks.length - 1];
+                var f0 = Math.min(f1, f2);
+                var f1_sorted = Math.max(f1, f2);
+                var color = plot.colors[plot.pairs.length % plot.colors.length];
+                
+                plot.pairs.push({{
+                    f0: f0,
+                    f1: f1_sorted,
+                    color: color
+                }});
+                
+                // Remove from selected
+                plot.selected_peaks = plot.selected_peaks.filter(function(peak) {{
+                    return Math.abs(peak - f0) >= plot.click_tolerance && 
+                        Math.abs(peak - f1_sorted) >= plot.click_tolerance;
+                }});
+                
+                console.log('Created pair: ' + f0.toFixed(1) + ' Hz and ' + f1_sorted.toFixed(1) + ' Hz, ratio: ' + (f1_sorted/f0).toFixed(3));
+                updatePlot(plotIndex);
+            }}
+        }}
+
+        function clearSelections(plotIndex) {{
+            plotData[plotIndex].selected_peaks = [];
+            updatePlot(plotIndex);
+        }}
+
+        function resetAll(plotIndex) {{
+            plotData[plotIndex].selected_peaks = [];
+            plotData[plotIndex].pairs = [];
+            console.log('Reset all for plot ' + plotIndex);
+            updatePlot(plotIndex);
+        }}
+
+        function connectAll(plotIndex) {{
+            var plot = plotData[plotIndex];
+            
+            // Get all nodes that should be in the fully connected graph:
+            // 1. Currently selected peaks 
+            // 2. Peaks that are already in existing pairs
+            var allNodes = new Set();
+            
+            // Add currently selected peaks
+            for (var i = 0; i < plot.selected_peaks.length; i++) {{
+                allNodes.add(plot.selected_peaks[i]);
+            }}
+            
+            // Add peaks from existing pairs
+            for (var i = 0; i < plot.pairs.length; i++) {{
+                allNodes.add(plot.pairs[i].f0);
+                allNodes.add(plot.pairs[i].f1);
+            }}
+            
+            var nodes = Array.from(allNodes).sort(function(a, b) {{ return a - b; }});
+            
+            if (nodes.length < 2) {{
+                console.log('Need at least 2 points to connect');
+                return;
+            }}
+            
+            console.log('Creating fully connected graph with ' + nodes.length + ' nodes: ' + nodes.map(n => n.toFixed(1)).join(', '));
+            
+            // Create pairs for all combinations that don't already exist
+            var existingPairSet = new Set();
+            for (var i = 0; i < plot.pairs.length; i++) {{
+                var pair = plot.pairs[i];
+                var key1 = pair.f0 + '-' + pair.f1;
+                var key2 = pair.f1 + '-' + pair.f0;
+                existingPairSet.add(key1);
+                existingPairSet.add(key2);
+            }}
+            
+            var newPairsAdded = 0;
+            for (var i = 0; i < nodes.length; i++) {{
+                for (var j = i + 1; j < nodes.length; j++) {{
+                    if (plot.pairs.length >= plot.max_pairs) {{
+                        console.log('Reached maximum pairs limit');
+                        break;
+                    }}
+                    
+                    var f0 = Math.min(nodes[i], nodes[j]);
+                    var f1 = Math.max(nodes[i], nodes[j]);
+                    var pairKey = f0 + '-' + f1;
+                    
+                    // Only add if this pair doesn't already exist
+                    if (!existingPairSet.has(pairKey)) {{
+                        var color = plot.colors[plot.pairs.length % plot.colors.length];
+                        
+                        plot.pairs.push({{
+                            f0: f0,
+                            f1: f1,
+                            color: color
+                        }});
+                        
+                        existingPairSet.add(pairKey);
+                        existingPairSet.add(f1 + '-' + f0);
+                        newPairsAdded++;
+                    }}
+                }}
+                if (plot.pairs.length >= plot.max_pairs) break;
+            }}
+            
+            // DON'T clear selected peaks - keep them for potential future operations
+            // plot.selected_peaks = [];  // REMOVED THIS LINE
+            
+            console.log('Added ' + newPairsAdded + ' new connections to create fully connected graph');
+            console.log('Total pairs: ' + plot.pairs.length);
+            updatePlot(plotIndex);
+        }}
+
+        // Add scale toggle function
+        function toggleScale(plotIndex) {{
+            var plot = plotData[plotIndex];
+            var fig = document.getElementsByClassName('js-plotly-plot')[0];
+            
+            // Toggle scale state
+            plot.current_scale = plot.current_scale === 'db' ? 'linear' : 'db';
+            
+            // Update main PSD trace
+            var psdTraceIndex = plotIndex * 2;
+            var newYData = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
+            
+            Plotly.restyle(fig, {{'y': [newYData]}}, [psdTraceIndex]);
+            
+            // Update peak powers
+            plot.peak_powers = plot.current_scale === 'db' ? plot.peak_powers_db : plot.peak_powers_linear;
+            
+            // FIXED: Update axis label properly
+            var yAxisKey = 'yaxis' + (plot.row === 1 && plot.col === 1 ? '' : ((plot.row-1)*3 + plot.col));
+            var newYLabel = plot.current_scale === 'db' ? 'PSD (dB)' : 'PSD (linear)';
+            
+            var layoutUpdate = {{}};
+            layoutUpdate[yAxisKey] = {{title: newYLabel}};  // FIXED: Proper nested object
+            Plotly.relayout(fig, layoutUpdate);
+            
+            console.log('Toggled to ' + plot.current_scale + ' scale');
+            
+            // CRITICAL: Redraw selected peaks with new scale
+            updatePlot(plotIndex);
+        }}
+
+        // Update Plot
+        function updatePlot(plotIndex) {{
+            var plot = plotData[plotIndex];
+            var row = plot.row;
+            var col = plot.col;
+            var fig = document.getElementsByClassName('js-plotly-plot')[0];
+            
+            // PRESERVE AXIS RANGES - Get current ranges before any modifications
+            var currentLayout = fig.layout;
+            var xAxisKey = 'xaxis' + (row === 1 && col === 1 ? '' : ((row-1)*3 + col));
+            var yAxisKey = 'yaxis' + (row === 1 && col === 1 ? '' : ((row-1)*3 + col));
+            var currentXRange = currentLayout[xAxisKey] ? currentLayout[xAxisKey].range : null;
+            var currentYRange = currentLayout[yAxisKey] ? currentLayout[yAxisKey].range : null;
+            
+            // Remove old interactive traces
+            var tracesToRemove = [];
+            
+            for (var i = 0; i < fig.data.length; i++) {{
+                if (fig.data[i].name && (fig.data[i].name.includes('selected_' + plotIndex) || 
+                                        fig.data[i].name.includes('pair_' + plotIndex) ||
+                                        fig.data[i].name.includes('vline_' + plotIndex))) {{
+                    tracesToRemove.push(i);
+                }}
+            }}
+            
+            if (tracesToRemove.length > 0) {{
+                Plotly.deleteTraces(fig, tracesToRemove);
+            }}
+            
+            // Clear old ratio annotations for this plot only
+            var layout = fig.layout;
+            if (layout.annotations) {{
+                layout.annotations = layout.annotations.filter(function(ann) {{
+                    return !(ann.plotIndex && ann.plotIndex === plotIndex && ann.isRatio);
+                }});
+            }} else {{
+                layout.annotations = [];
+            }}
+            
+            // Prepare all traces to add in one batch
+            var tracesToAdd = [];
+            var axisRef = row === 1 && col === 1 ? '' : (row-1)*3 + col;
+            var xAxisRef = 'x' + axisRef;
+            var yAxisRef = 'y' + axisRef;
+            
+            // Add selected peaks with blue markers and frequency labels
+            if (plot.selected_peaks.length > 0) {{
+                var selectedX = [];
+                var selectedY = [];
+                var selectedText = [];
+                
+                for (var i = 0; i < plot.selected_peaks.length; i++) {{
+                    var freq = plot.selected_peaks[i];
+                    var peakIdx = plot.peak_freqs.findIndex(function(f) {{ 
+                        return Math.abs(f - freq) < plot.click_tolerance; 
+                    }});
+                    
+                    if (peakIdx >= 0) {{
+                        selectedX.push(freq);
+
+                        // selectedY.push(plot.peak_powers[peakIdx]);
+                        selectedY.push(plot.current_scale === 'db' ? plot.peak_powers_db[peakIdx] : plot.peak_powers_linear[peakIdx]);
+
+                        selectedText.push(freq.toFixed(0) + ' Hz');
+                    }}
+                }}
+                
+                if (selectedX.length > 0) {{
+                    tracesToAdd.push({{
+                        x: selectedX,
+                        y: selectedY,
+                        mode: 'markers+text',
+                        marker: {{ color: 'blue', size: 10, line: {{ color: 'black', width: 1 }} }},
+                        text: selectedText,
+                        textposition: 'top center',
+                        textfont: {{ color: 'blue', size: 10 }},
+                        name: 'selected_' + plotIndex,
+                        showlegend: false,
+                        xaxis: xAxisRef,
+                        yaxis: yAxisRef
+                    }});
+                }}
+            }}
+            
+            // Prepare pair traces in batch
+            var pairVerticalLines = {{ x: [], y: [], mode: 'lines', line: {{ color: 'gray', width: 1, dash: 'dot' }}, opacity: 0.7, name: 'vlines_' + plotIndex, showlegend: false, xaxis: xAxisRef, yaxis: yAxisRef }};
+            
+            //var yMin = Math.min(...plot.psd_db);
+            //var yMax = Math.max(...plot.psd_db);
+            var currentPSD = plot.current_scale === 'db' ? plot.psd_db : plot.psd_linear;
+            var yMin = Math.min(...currentPSD);
+            var yMax = Math.max(...currentPSD);
+
+
+            // Add pairs with connecting lines and colored vertical lines
+            for (var i = 0; i < plot.pairs.length; i++) {{
+                var pair = plot.pairs[i];
+                var f0Idx = plot.peak_freqs.findIndex(function(f) {{ 
+                    return Math.abs(f - pair.f0) < plot.click_tolerance; 
+                }});
+                var f1Idx = plot.peak_freqs.findIndex(function(f) {{ 
+                    return Math.abs(f - pair.f1) < plot.click_tolerance; 
+                }});
+                
+                if (f0Idx >= 0 && f1Idx >= 0) {{
+                    //var f0Power = plot.peak_powers[f0Idx];
+                    //var f1Power = plot.peak_powers[f1Idx];
+                    var f0Power = plot.current_scale === 'db' ? plot.peak_powers_db[f0Idx] : plot.peak_powers_linear[f0Idx];
+                    var f1Power = plot.current_scale === 'db' ? plot.peak_powers_db[f1Idx] : plot.peak_powers_linear[f1Idx];
+
+                    // Add to batch vertical lines
+                    pairVerticalLines.x.push(pair.f0, pair.f0, null, pair.f1, pair.f1, null);
+                    pairVerticalLines.y.push(yMin, yMax, null, yMin, yMax, null);
+                    
+                    // Add connecting line with markers
+                    tracesToAdd.push({{
+                        x: [pair.f0, pair.f1],
+                        y: [f0Power, f1Power],
+                        mode: 'lines+markers+text',
+                        line: {{ color: pair.color, width: 2 }},
+                        marker: {{ color: 'blue', size: 10, line: {{ color: 'black', width: 1 }} }},
+                        text: [pair.f0.toFixed(0) + ' Hz', pair.f1.toFixed(0) + ' Hz'],
+                        textposition: 'top center',
+                        textfont: {{ color: 'blue', size: 10 }},
+                        name: 'pair_' + plotIndex + '_' + i,
+                        showlegend: false,
+                        xaxis: xAxisRef,
+                        yaxis: yAxisRef
+                    }});
+                }}
+            }}
+            
+            // Add the batched vertical lines if any pairs exist
+            if (pairVerticalLines.x.length > 0) {{
+                tracesToAdd.push(pairVerticalLines);
+            }}
+            
+            // CREATE TOP-RIGHT RATIO LIST for this plot
+            if (plot.pairs.length > 0) {{
+                // Create a single compact legend-style annotation
+                var ratioTexts = [];
+                for (var i = 0; i < plot.pairs.length; i++) {{
+                    var pair = plot.pairs[i];
+                    var ratio = pair.f1 / pair.f0;
+                    ratioTexts.push(pair.f0.toFixed(0) + '→' + pair.f1.toFixed(0) + ' (r:' + ratio.toFixed(2) + ')');
+                }}
+                
+                // Join all ratios into a single multi-line text block
+                var combinedText = ratioTexts.join('<br>');
+                
+                // Calculate position for top-right of this specific subplot
+                var xDomain = currentLayout[xAxisKey] ? currentLayout[xAxisKey].domain : [0, 1];
+                var yDomain = currentLayout[yAxisKey] ? currentLayout[yAxisKey].domain : [0, 1];
+                
+                // Position at top-right corner of the subplot
+                var listX = xDomain[1] - 0.005; // Very close to right edge
+                var listY = yDomain[1] - 0.005; // Very close to top edge
+                
+                // Create single annotation with all ratios
+                layout.annotations.push({{
+                    x: listX,
+                    y: listY,
+                    text: combinedText,
+                    showarrow: false,
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: 'gray',
+                    borderwidth: 1,
+                    font: {{ size: 8, color: 'black' }},
+                    plotIndex: plotIndex,
+                    isRatio: true,
+                    xref: 'paper',
+                    yref: 'paper',
+                    xanchor: 'right',
+                    yanchor: 'top',
+                    align: 'right'
+                }});
+            }}
+            
+            // SINGLE BATCH UPDATE - Add all traces at once, then update layout
+            var updatePromise = Promise.resolve();
+            
+            if (tracesToAdd.length > 0) {{
+                updatePromise = Plotly.addTraces(fig, tracesToAdd);
+            }}
+            
+            // Update layout and restore axis ranges in one operation
+            var layoutUpdate = {{ annotations: layout.annotations }};
+            
+            // Restore axis ranges if they were captured
+            if (currentXRange) {{
+                layoutUpdate[xAxisKey + '.range'] = currentXRange;
+            }}
+            if (currentYRange) {{
+                layoutUpdate[yAxisKey + '.range'] = currentYRange;
+            }}
+            
+            updatePromise.then(function() {{
+                return Plotly.relayout(fig, layoutUpdate);
+            }}).then(function() {{
+                // Console debug info
+                if (plot.pairs.length > 0) {{
+                    console.log('=== Pairs for Plot ' + plotIndex + ' ===');
+                    for (var i = 0; i < plot.pairs.length; i++) {{
+                        var pair = plot.pairs[i];
+                        var ratio = pair.f1 / pair.f0;
+                        console.log('Pair ' + (i+1) + ': ' + pair.f0.toFixed(1) + ' Hz <-> ' + pair.f1.toFixed(1) + ' Hz (ratio: ' + ratio.toFixed(3) + ')');
+                    }}
+                }}
+            }});
+        }}
+
+        document.addEventListener('DOMContentLoaded', function() {{
+            var plotDiv = document.getElementsByClassName('js-plotly-plot')[0];
+            
+            plotDiv.on('plotly_click', function(data) {{
+                if (!data.points || data.points.length === 0) return;
+                
+                var point = data.points[0];
+                var clickX = point.x;
+                var plotIndex = 0;
+                
+                // Determine which subplot was clicked
+                if (point.data.name && point.data.name.includes('_')) {{
+                    var parts = point.data.name.split('_');
+                    if (parts.length > 1) {{
+                        plotIndex = parseInt(parts[1]) || 0;
+                    }}
+                }}
+                
+                var currentTime = Date.now();
+                var timeDiff = currentTime - lastClickTime;
+                var isDoubleClick = timeDiff < 300;
+                
+                // Check for Ctrl key modifier
+                var isCtrlClick = data.event && (data.event.ctrlKey || data.event.metaKey);
+                
+                if (isDoubleClick) {{
+                    doubleClickTime = currentTime;
+                }}
+                
+                lastClickTime = currentTime;
+                
+                var peakIdx = findNearestPeak(plotIndex, clickX);
+                
+                if (peakIdx !== null) {{
+                    if (isCtrlClick) {{
+                        // Ctrl+click to remove peak
+                        removePeak(plotIndex, peakIdx);
+                    }} else if (isDoubleClick) {{
+                        // Double-click to remove peak (alternative method)
+                        removePeak(plotIndex, peakIdx);
+                    }} else {{
+                        // Regular click to select peak
+                        selectPeak(plotIndex, peakIdx);
+                    }}
+                }}
+            }});
+            
+            plotDiv.addEventListener('contextmenu', function(e) {{
+                e.preventDefault();
+                
+                // Simple right-click handler for pair creation
+                var rect = plotDiv.getBoundingClientRect();
+                var plotIndex = 0; // For simplicity, apply to first plot
+                createPair(plotIndex);
+                
+                return false;
+            }});
+            
+            document.addEventListener('keypress', function(event) {{
+                var key = event.key.toLowerCase();
+                
+                for (var i = 0; i < plotData.length; i++) {{
+                    switch(key) {{
+                        case 'c':
+                            clearSelections(i);
+                            break;
+                        case 'r':
+                            resetAll(i);
+                            break;
+                        case 'a':
+                            connectAll(i);
+                            break;
+                    }}
+                }}
+            }});
+            
+            console.log('Interactive Spectral Analysis - create_interactive_html_plots - ready');
+            console.log('Left-click: select peak, Ctrl+click: remove peak, Double-click: remove peak');
+            console.log('Right-click: create pair, Keys: c=clear, r=reset, a=fully connect node graph, d=toggle db scale view');   
+        }});
+        </script>
+    """)
+    
+    # Define the HTML file path
+    html_filename = f"{base_filename}_{jelfun.get_timestamp()}.html"
+    html_path = os.path.join(output_directory, html_filename)
+    
+    # Generate the HTML content
+    html_str = plotly_fig.to_html(
+        include_plotlyjs='cdn',
+        full_html=True,
+        config={
+            'responsive': True,
+            'displayModeBar': True,
+            'scrollZoom': True,
+            'displaylogo': False,
+            'editable': False,
+            'staticPlot': False,
+        }
+    )
+    
+    # Add normal cursor styling
+    cursor_style = '<style>body { cursor: default !important; } .js-plotly-plot .plotly { cursor: default !important; } .js-plotly-plot .plotly .cursor-crosshair { cursor: default !important; } .plotly { cursor: default !important; } * { cursor: default !important; }</style>'
+    html_str = html_str.replace('<head>', f'<head>{cursor_style}')
+    
+    # Insert JavaScript
+    html_str = html_str.replace('</body>', f'{js_code}</body>')
+    
+    # Save to file
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_str)
+    
+    print(f"Interactive HTML saved to {html_path}")
+    
+    # Save data files
+    data_filename = f"{base_filename}_{jelfun.get_timestamp()}_pairdata.json"
+    data_path = os.path.join(output_directory, data_filename)
+    
+    export_data = []
+    for plot in plots:
+        file_data = {
+            'filename': getattr(plot, 'filename', 'Untitled'),
+            'method': getattr(plot, 'method_name', 'Unknown'),
+            'pairs': []
+        }
+        if hasattr(plot, 'pairs'):
+            for pair in plot.pairs:
+                if 'f0' in pair and 'f1' in pair:
+                    file_data['pairs'].append({
+                        'f0': float(pair['f0']),
+                        'f1': float(pair['f1']),
+                        'ratio': float(pair['f1'] / pair['f0'])
+                    })
+        export_data.append(file_data)
+    
+    with open(data_path, 'w', encoding='utf-8') as f:
+        json.dump(export_data, f, indent=2, cls=NumpyEncoder)
+    
+    graph_filename = f"{base_filename}_{jelfun.get_timestamp()}_graphdata.json"
+    graph_path = os.path.join(output_directory, graph_filename)
+    
+    graph_export_data = []
+    for plot in plots:
+        graph_data = {'nodes': [], 'edges': []}
+        if hasattr(plot, 'get_graph_data'):
+            try:
+                raw_graph = plot.get_graph_data()
+                if 'nodes' in raw_graph:
+                    for node in raw_graph['nodes']:
+                        safe_node = {}
+                        for key, value in node.items():
+                            if hasattr(value, 'item'):
+                                safe_node[key] = value.item()
+                            elif isinstance(value, (np.ndarray, np.number)):
+                                safe_node[key] = float(value)
+                            else:
+                                safe_node[key] = value
+                        graph_data['nodes'].append(safe_node)
+                
+                if 'edges' in raw_graph:
+                    for edge in raw_graph['edges']:
+                        safe_edge = {}
+                        for key, value in edge.items():
+                            if hasattr(value, 'item'):
+                                safe_edge[key] = value.item()
+                            elif isinstance(value, (np.ndarray, np.number)):
+                                safe_edge[key] = float(value)
+                            else:
+                                safe_edge[key] = value
+                        graph_data['edges'].append(safe_edge)
+            except Exception as e:
+                print(f"Error processing graph data: {e}")
+        
+        file_data = {
+            'filename': getattr(plot, 'filename', 'Untitled'),
+            'method': getattr(plot, 'method_name', 'Unknown'),
+            'graph': graph_data
+        }
+        graph_export_data.append(file_data)
+    
+    with open(graph_path, 'w', encoding='utf-8') as f:
+        json.dump(graph_export_data, f, indent=2, cls=NumpyEncoder)
+    
+    print(f"Data saved to: {data_path}")
+    print(f"Graph data saved to: {graph_path}")
+    
+    try:
+        # webbrowser.open(f'file://{os.path.abspath(html_path)}')
+        print(f"Opening HTML file in browser...")
+    except Exception as e:
+        print(f"Could not open browser automatically: {e}")
+        print(f"Please open manually: {html_path}")
+    
+    return html_path, data_path, graph_path
+
+# ==================== SERVER ====================
+
+def serve_html_with_audio(html_path, port=8000):
+    """Start a local web server to serve HTML with audio files."""
+    import http.server
+    import socketserver
+    import webbrowser
+    import os
+    from pathlib import Path
+    
+    html_file = Path(html_path)
+    
+    # Find the 'code' directory by going up from HTML file
+    current_dir = html_file.parent
+    server_root = current_dir  # Default fallback
+    
+    # Look for 'code' directory or a directory containing 'tranche'
+    while current_dir.parent != current_dir:  # Don't go above filesystem root
+        if current_dir.name == 'code' or (current_dir / "tranche").exists():
+            server_root = current_dir
+            print(f"✅ Found server root: {server_root}")
+            break
+        current_dir = current_dir.parent
+    
+    print(f"🌐 Starting web server in: {server_root}")
+    
+    # Check if we can find any audio directories
+    tranche_dir = server_root / "tranche"
+    if tranche_dir.exists():
+        slices_dirs = list(tranche_dir.glob("slices/*"))
+        print(f"🎵 Found {len(slices_dirs)} slice directories: {[d.name for d in slices_dirs[:3]]}...")
+    
+    original_dir = os.getcwd()
+    os.chdir(server_root)
+    
+    # Calculate relative path from server root to HTML file
+    relative_html_path = os.path.relpath(html_path, server_root).replace('\\', '/')
+    
+    class QuietHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+    
+    try:
+        with socketserver.TCPServer(("", port), QuietHTTPRequestHandler) as httpd:
+            url = f'http://localhost:{port}/{relative_html_path}'
+            print(f"🌐 Server running at: {url}")
+            webbrowser.open(url)
+            print(f"📝 Press Ctrl+C to stop server")
+            
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\n🛑 Server stopped")
+    except Exception as e:
+        print(f"❌ Server error: {e}")
+    finally:
+        os.chdir(original_dir)
+
+# ==================== SAVE FUNCTIONS ====================
+
+def save_figure_with_timestamp(fig, plots, base_filename="psd_anal", output_directory=None):
+    """Save a figure with timestamp as part of the filename for versioning."""
+    if output_directory is None:
+        daily_dir = jelfun.make_daily_directory()
+        output_directory = f"{daily_dir}/jellyfish_dynamite_plots"
+    
+    # Create directory if it doesn't exist
+    os.makedirs(output_directory, exist_ok=True)
+    
+    # Save figure with timestamp
+    fig_filename = f"{base_filename}_{jelfun.get_timestamp()}_fig.png"
+    fig_path = os.path.join(output_directory, fig_filename)
+    
+    # Save the figure
+    fig.savefig(fig_path, bbox_inches='tight', dpi=200)
+    
+    # Save pair data as JSON
+    data_filename = f"{base_filename}_{jelfun.get_timestamp()}_pairdata.json"
+    data_path = os.path.join(output_directory, data_filename)
+    
+    # Export data
+    export_data = []
+    for plot in plots:
+        file_data = {
+            'filename': plot.filename,
+            'pairs': []
+        }
+        for pair in plot.pairs:
+            file_data['pairs'].append({
+                'f0': float(pair['f0']),
+                'f1': float(pair['f1']),
+                'f1_f0_ratio': float(pair['f1'] / pair['f0'])
+            })
+        export_data.append(file_data)
+    
+    # Save the data
+    with open(data_path, 'w') as f:
+        json.dump(export_data, f, indent=2)
+    
+    print(f"Figure saved to {fig_path}")
+    print(f"Data saved to {data_path}")
+
+    return fig_path, data_path
+
+def save_jellyfish_jinja(template_vars, template_name, base_filename="psd_analysis", output_directory=None, **kwargs):
+    """Agnostic Jinja templating function - works with any template and data."""
+    
+    # Custom JSON encoder for NumPy types
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.number):
+                return obj.item()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return super().default(obj)
+    
+    # Use daily_dir as default if none provided
+    if output_directory is None:
+        try:
+            daily_dir = jelfun.make_daily_directory()
+            output_directory = f"{daily_dir}/jellyfish_dynamite_html"
+        except:
+            output_directory = "html_output"
+    
+    # Create directory if it doesn't exist
+    os.makedirs(output_directory, exist_ok=True)
+    
+    # Load template file
+    if not os.path.exists(template_name):
+        print(f"Template not found: {template_name}")
+        print(f"Current directory: {os.getcwd()}")
+        return None, None, None
+    
+    with open(template_name, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    
+    # Create Jinja2 template and render
+    template = Template(template_content)
+    html_str = template.render(**template_vars)
+    
+    # Define file paths
+    html_filename = f"{base_filename}_{jelfun.get_timestamp()}.html"
+    html_path = os.path.join(output_directory, html_filename)
+    
+    # Save HTML file
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_str)
+    
+    print(f"HTML saved to: {html_path}")
+    
+    try:
+        # webbrowser.open(f'file://{os.path.abspath(html_path)}')
+        print(f"Opening HTML file in browser...")
+    except Exception as e:
+        print(f"Could not open browser automatically: {e}")
+        print(f"Please open manually: {html_path}")
+    
+    return html_path
+
+# PLOTLY TEMPLATE ... TEMPLOT!!
+
+def prepare_plotly_template_vars(plots, methods=None, dir_name=None, use_db_scale=True, output_directory=None, pagination_info=None, **kwargs):
+    """Prepare template variables specifically for Plotly templates with dual scale support."""
+
+    # Custom JSON encoder for NumPy types
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.number):
+                return obj.item()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return super().default(obj)
+
+    # Calculate grid dimensions from plots
+    total_plots = len(plots)
+    filenames = set()
+    methods_set = set()
+    for plot in plots:
+        base_name = plot.filename.split(' (')[0] if ' (' in plot.filename else plot.filename
+        filenames.add(base_name)
+        if hasattr(plot, 'method_name'):
+            methods_set.add(plot.method_name)
+
+    n_files = len(filenames)
+    n_methods = len(methods_set) if methods_set else total_plots
+    n_rows = n_files
+    n_cols = n_methods
+
+    # Calculate vertical spacing
+    if n_rows > 1:
+        v_spacing = min(0.15, 0.2 / (n_rows - 1))
+    else:
+        v_spacing = 0.15
+
+    # Create plotly figure with subplots
+    plotly_fig = make_subplots(
+        rows=n_rows, 
+        cols=n_cols,
+        subplot_titles=[getattr(plot, 'filename', f"Plot {i+1}") for i, plot in enumerate(plots)],
+        vertical_spacing=v_spacing,
+        horizontal_spacing=0.08, 
+        #specs=[[{"secondary_y": True} for _ in range(n_cols)] for _ in range(n_rows)]  # ADD THIS
+    )
+
+    # Helper function to safely convert arrays
+    def safe_tolist(arr):
+        if hasattr(arr, 'tolist'):
+            return arr.tolist()
+        elif isinstance(arr, (list, tuple)):
+            return list(arr)
+        else:
+            return arr
+
+    # Process each plot
+    for i, plot in enumerate(plots):
+
+        print(f"\n=== PROCESSING PLOT {i} ===")
+        print(f"Plot filename: {getattr(plot, 'filename', 'Unknown')}")
+        print(f"Plot method: {getattr(plot, 'method_name', 'Unknown')}")
+        
+        file_idx = i // n_methods
+        method_idx = i % n_methods
+        row = file_idx + 1
+        col = method_idx + 1
+                
+        frequencies = safe_tolist(plot.frequencies)        
+        
+        # Get both linear and dB versions of the data
+        linear_psd = safe_tolist(plot.original_psd if hasattr(plot, 'original_psd') else plot.psd)
+        db_psd = safe_tolist(plot.psd_db)
+        
+        # Also get peak data in both scales
+        peak_freqs = safe_tolist(plot.peak_freqs)
+
+        # Calculate peak powers for both scales
+        peak_powers_linear = []
+        peak_powers_db = []
+        for peak_freq in plot.peak_freqs:
+            freq_idx = np.argmin(np.abs(plot.frequencies - peak_freq))
+            peak_powers_linear.append(float(plot.psd_linear[freq_idx]))
+            peak_powers_db.append(float(plot.psd_db[freq_idx]))
+
+        # Use the scale parameter to determine starting data
+        starting_psd = db_psd if use_db_scale else linear_psd
+        starting_peak_powers = peak_powers_db if use_db_scale else peak_powers_linear
+
+        # Calculate and add spectral ridge and vein data
+        ridge_data = None
+        veins_data = None
+
+        # BEFORE adding spectrogram to Plotly:
+        # Check if this plot has spectrogram data (FFT_DUAL method)
+        if (hasattr(plot, 'has_spectrogram') and plot.has_spectrogram and 
+            hasattr(plot, 'spectrogram_linear') and plot.spectrogram_linear is not None):
+            try:
+                # Calculate spectral ridge
+                ridge_times, ridge_freqs = find_max_energy_ridge(
+                    plot.spectrogram_linear, plot.frequencies, plot.times
+                )
+                ridge_data = {
+                    'times': safe_tolist(ridge_times),
+                    'freqs': safe_tolist(ridge_freqs)
+                }
+                
+                # Calculate spectral veins
+                veins = find_spectral_veins(
+                    plot.spectrogram_linear, plot.frequencies, plot.times, 
+                    num_veins=getattr(plot, 'num_veins', 6)
+                )
+                veins_data = []
+                for vein in veins:
+                    veins_data.append({
+                        'times': safe_tolist(vein['times']),
+                        'freqs': safe_tolist(vein['freqs']),
+                        'center_freq': float(vein['center_freq']),
+                        'rank': int(vein['rank'])
+                    })
+                    
+                print(f"SUCCESS: Calculated ridge/veins for plot {i} - Ridge points: {len(ridge_data['freqs'])}, Veins: {len(veins_data)}")
+                    
+            except Exception as e:
+                print(f"ERROR calculating ridge/veins for plot {i}: {e}")
+                ridge_data = None
+                veins_data = None
+
+            # DEBUG 
+            # Check if data was calculated
+            print(f"RIDGE/VEIN DEBUG plot {i}: ridge_data={ridge_data is not None}, veins_data={veins_data is not None}")
+            if ridge_data:
+                print(f"  Ridge has {len(ridge_data['freqs'])} points")
+            if veins_data:
+                print(f"  Veins has {len(veins_data)} veins")
+
+            # DEBUG
+            print(f"PYTHON DEBUG for plot {i}:")
+            print(f"  ridge_data exists: {ridge_data is not None}")
+            print(f"  veins_data exists: {veins_data is not None}")
+            if ridge_data:
+                print(f"  ridge_data keys: {ridge_data.keys()}")
+                print(f"  ridge freqs length: {len(ridge_data['freqs'])}")
+                print(f"  ridge times length: {len(ridge_data['times'])}")
+            if veins_data:
+                print(f"  veins_data length: {len(veins_data)}")
+                print(f"  first vein sample: {veins_data[0] if veins_data else 'None'}")
+
+            times = safe_tolist(plot.times)
+
+        # S P E C T R O G R A M !!!!!
+        # remember - only the fft has this for now, wil fail for CQT etc. 
+        # BEFORE adding spectrogram to Plotly:
+        if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram:
+            times = safe_tolist(plot.times)
+            
+            # Scale time to PSD range**
+            psd_min = np.min(starting_psd)
+            psd_max = np.max(starting_psd)
+            time_min = np.min(plot.times)
+            time_max = np.max(plot.times)
+
+            # Scale times to use 50% of PSD range at the top
+            psd_range = psd_max - psd_min
+            scaled_times = []
+            for t in plot.times:
+                # Map time to top 50% of PSD range
+                normalized_time = (t - time_min) / (time_max - time_min)  # 0 to 1
+                scaled_time = psd_max - (psd_range * 0.5) + (normalized_time * psd_range * 0.5)
+                scaled_times.append(scaled_time)            
+
+            # Right before the problematic line:
+            print(f"About to check spectrogram for plot {i}")
+            print(f"plot.spectrogram_db type: {type(getattr(plot, 'spectrogram_db', 'MISSING'))}")
+            
+            # Keep as numpy array until the last moment
+            spec_array = plot.spectrogram_db  # Already numpy array
+            spec_array_transposed = spec_array.T  # Transpose the numpy array
+            
+            # Convert to list only for Plotly
+            spectrogram_data = spec_array_transposed.tolist()
+            
+            # Add as background heatmap (same axes as PSD)
+            plotly_fig.add_trace(
+                go.Heatmap(
+                    x=frequencies,  # X-axis: frequency (matches PSD)
+                    y=scaled_times,        # Y-axis: time (will be scaled to fit PSD y-range)
+                    z=spectrogram_data,  # converted to list from transposed numpy aray
+                    colorscale='magma', #'viridis', 'magma', 'plasma', 'hot', 'turbo', 'jet'
+                    opacity=1.0,  # Low opacity for background effect
+                    showscale=False, # Remove sidebar for gradient legend
+                    name=f"spectrogram_{i}",
+                    hovertemplate='Freq: %{x:.1f} Hz<br>Time: %{y:.3f} s<br>Power: %{z:.2f}<extra></extra>',
+                    zmin=np.min(spec_array),
+                    zmax=np.max(spec_array),
+                ),
+                row=row, col=col,
+                #secondary_y=True  # Put on secondary Y-axis
+            )
+
+        # Add main PSD curve with both scales stored on primary Y-axis
+        plotly_fig.add_trace(
+            go.Scatter(
+                x=frequencies,
+                y=starting_psd,
+                mode='lines',
+                name=f"psd_{i}",
+                line=dict(color='black', width=2),
+                showlegend=False,
+                # Store both scales in customdata/meta
+                meta={
+                    'linear_psd': linear_psd,
+                    'db_psd': db_psd,
+                    'scale_type': 'main_trace',
+                    # Add spectrogram meta if available
+                    'has_spectrogram': hasattr(plot, 'has_spectrogram') and plot.has_spectrogram,
+                    'spectrogram_linear': safe_tolist(plot.spectrogram_linear) if hasattr(plot, 'spectrogram_linear') else None,
+                    'spectrogram_db': safe_tolist(plot.spectrogram_db) if hasattr(plot, 'spectrogram_db') else None,
+                    'times': times if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram else None,
+                    # Add veins and ridges
+                    'ridge_data': ridge_data,
+                    'veins_data': veins_data
+                }
+            ),
+            row=row, col=col,
+        )
+        
+        # Add detected peaks with both scales stored on primary Y-axis  
+        plotly_fig.add_trace(
+            go.Scatter(
+                x=peak_freqs,
+                y=starting_peak_powers,
+                mode='markers',
+                name=f"peaks_{i}",
+                marker=dict(color='gray', size=5, opacity=0.7),
+                showlegend=False,
+                meta={
+                    'linear_powers': peak_powers_linear,
+                    'db_powers': peak_powers_db,
+                    'scale_type': 'peak_trace'
+                }
+            ),
+            row=row, col=col,
+            secondary_y=False  # Optional but clear
+        )
+        
+        # Add spectral ridge if available!!
+        if ridge_data is not None:
+            plotly_fig.add_trace(
+                go.Scatter(
+                    x=ridge_data['freqs'],
+                    y=ridge_data['times'],
+                    mode='lines',
+                    name=f"ridge_{i}",
+                    line=dict(color='cyan', width=2.5),
+                    showlegend=False,
+                    visible=False,  # toggle visibility with 'e' key
+                    meta={
+                        'scale_type': 'ridge_trace'
+                    }
+                ),
+                row=row, col=col
+            )
+
+        # Set axis properties
+        if hasattr(plot, 'plot_fmin') and hasattr(plot, 'plot_fmax'):
+            plotly_fig.update_xaxes(range=[plot.plot_fmin, plot.plot_fmax], row=row, col=col)
+        plotly_fig.update_xaxes(title_text="Frequency (Hz)", row=row, col=col)
+        plotly_fig.update_yaxes(title_text="PSD (dB)", row=row, col=col, secondary_y=False)  # Primary Y
+        plotly_fig.update_yaxes(title_text="Time (s)", row=row, col=col, secondary_y=True)   # Secondary Y
+
+
+    # Update main layout
+    plotly_fig.update_layout(
+        title=f"Interactive Spectral Analysis - Dir: {dir_name} - prepare_plotly_template_vars",
+        height=max(600, 500 * n_rows),
+        width=max(800, 300 * n_cols),
+        template="plotly_white",
+        margin=dict(l=50, r=50, t=100, b=50)
+    )
+
+    # Convert to JSON
+    fig_json = plotly_fig.to_json()
+    fig_dict = json.loads(fig_json)
+
+    subplot_titles = [getattr(plot, 'filename', f"Plot {i+1}") for i, plot in enumerate(plots)]
+
+    # Audio source path calculation for browser access
+    audio_source_path = ""
+    if 'audio_directory' in kwargs and kwargs['audio_directory']:
+        try:
+            audio_dir = Path(kwargs['audio_directory'])
+
+            # For Flask uploads, use the session directory structure
+            if 'temp_uploads' in str(audio_dir):
+                # Extract session ID from path like "temp_uploads/0f6c2775"
+                parts = audio_dir.parts
+                if 'temp_uploads' in parts:
+                    session_idx = parts.index('temp_uploads')
+                    if len(parts) > session_idx + 1:
+                        session_id = parts[session_idx + 1]
+                        audio_source_path = f"temp_uploads/{session_id}"
+                        print(f"🎵 Flask session audio path: {audio_source_path}")
+
+            # Original logic for direct audio directories
+            else:    
+                # Extract the relative path from code/ directory
+                # e.g., if audio_directory is "/Users/me/code/tranche/slices/2556"
+                # we want "tranche/slices/2556"
+                audio_dir_str = str(audio_dir).replace('\\', '/')
+                
+                if 'code/' in audio_dir_str:
+                    # Split on 'code/' and take the part after it
+                    audio_source_path = '/' + audio_dir_str.split('code/')[-1] # leading slash looks in server root
+                else:
+                    # Fallback: try to construct relative path
+                    # Look for tranche/slices pattern
+                    parts = audio_dir.parts
+                    try:
+                        tranche_idx = parts.index('tranche')
+                        audio_source_path = '/'.join(parts[tranche_idx:])
+                    except ValueError:
+                        # Last resort: use directory name
+                        audio_source_path = audio_dir.name
+                
+            print(f"🎵 Audio source path calculated: {audio_source_path}")
+            
+            # Debug info
+            print(f"🔍 DEBUG AUDIO PATHS:")
+            print(f"  Original audio directory: {audio_dir}")
+            print(f"  Calculated source path: {audio_source_path}")
+            
+        except Exception as e:
+            print(f"⚠️  Could not calculate audio path: {e}")
+            audio_source_path = ""
+
+
+    # Return template variables for Plotly
+    return {
+        # Audio configuration
+        'AUDIO_SOURCE_PATH': audio_source_path,
+        
+        # Plot display stuff
+        'PLOT_ID': f"plot_{jelfun.get_timestamp()}",
+        'PLOT_HEIGHT': max(600, 500 * n_rows),
+        'PLOT_WIDTH': max(800, 300 * n_cols),
+        'PLOT_DATA': json.dumps(fig_dict['data']),
+        'LAYOUT_DATA': json.dumps(fig_dict['layout']),
+        'SUBPLOT_TITLES': json.dumps(subplot_titles), 
+        'DIR_NAME': dir_name, 
+        'USE_DB_SCALE': 'true' if use_db_scale else 'false',
+        'N_ROWS': n_rows,
+        'N_COLS': n_cols,
+        'TOTAL_PLOTS': len(plots), 
+        
+        # Spectral resolution params
+        'PSD_N_FFT': kwargs.get('psd_n_fft', 1024),
+        'SPEC_N_FFT': kwargs.get('spec_n_fft', 512), 
+        'PSD_HOP_LENGTH': kwargs.get('psd_hop_length', 512),
+        'SPEC_HOP_LENGTH': kwargs.get('spec_hop_length', 512), 
+
+        # Pagination stuff for loading large html files, validation
+        'PAGINATION_INFO': json.dumps(pagination_info) if pagination_info else 'null',
+        'CURRENT_PAGE': pagination_info['current_page'] if pagination_info else 1,
+        'TOTAL_PAGES': pagination_info['total_pages'] if pagination_info else 1,
+    }
+
+def save_spectrogram_images(plots, output_directory):
+    """Save spectrograms as PNG images for HTML background use."""
+    print(f"DEBUG: save_spectrogram_images called with {len(plots)} plots")
+    print(f"DEBUG: output_directory = {output_directory}")
+
+    spectrogram_paths = []
+
+    for i, plot in enumerate(plots):
+        print(f"DEBUG: Plot {i} - has_spectrogram: {hasattr(plot, 'has_spectrogram')}")
+        if hasattr(plot, 'has_spectrogram'):
+            print(f"DEBUG: Plot {i} - has_spectrogram value: {plot.has_spectrogram}")
+        
+        if hasattr(plot, 'has_spectrogram') and plot.has_spectrogram:
+            print(f"DEBUG: Processing spectrogram for plot {i}")
+            try:
+                # Create matplotlib figure for spectrogram
+                fig_spec, ax_spec = plt.subplots(figsize=(8, 6))
+                
+                # FIXED: Use imshow instead of pcolormesh for easier handling
+                im = ax_spec.imshow(
+                    plot.spectrogram_db,
+                    aspect='auto',
+                    origin='lower',
+                    cmap='magma',
+                    alpha=0.7,
+                    extent=[
+                        plot.frequencies[0], plot.frequencies[-1],  # X range (frequency)
+                        plot.times[0], plot.times[-1]              # Y range (time)
+                    ]
+                )
+                
+                ax_spec.set_xlim(plot.plot_fmin, plot.plot_fmax)
+                ax_spec.set_xlabel('Frequency (Hz)')
+                ax_spec.set_ylabel('Time (s)')
+                ax_spec.set_title(f'Spectrogram - {plot.filename}')
+                
+                # Save as PNG - FIXED VARIABLE NAME
+                spec_filename = f"spectrogram_{i}_{jelfun.get_timestamp()}.png"
+                spec_path = os.path.join(output_directory, spec_filename)  # ADD THIS LINE
+                fig_spec.savefig(spec_path, bbox_inches='tight', dpi=150, transparent=True)
+                plt.close(fig_spec)
+                
+                print(f"DEBUG: Saved spectrogram to: {spec_path}")
+                print(f"DEBUG: File exists: {os.path.exists(spec_path)}")
+                spectrogram_paths.append(spec_filename)
+                
+            except Exception as e:
+                print(f"ERROR saving spectrogram for plot {i}: {e}")
+                import traceback
+                traceback.print_exc()  # This will show the full error
+                spectrogram_paths.append(None)
+        else:
+            print(f"DEBUG: Plot {i} has no spectrogram")
+            spectrogram_paths.append(None)
+
+    print(f"DEBUG: Final spectrogram_paths: {spectrogram_paths}")
+    return spectrogram_paths
+
+
+def save_jellyfish_plotly(plots, 
+                        base_filename="psd_analysis_plotly", 
+                        output_directory=None,
+                        methods=None, 
+                        dir_name=None, 
+                        use_db_scale=True,  
+                        pagination_info=None,
+                        **kwargs):
+    """Convenience wrapper for saving Plotly plots using Jinja templates."""
+    n_fft = kwargs.get('n_fft')
+    nfft_suffix = f"_nfft{n_fft}" if n_fft else ""
+
+    # Set up output directory FIRST
+    if output_directory is None:
+        daily_dir = jelfun.make_daily_directory()
+        output_directory = f"{daily_dir}/jellyfish_dynamite_html"
+    os.makedirs(output_directory, exist_ok=True)
+
+    # Generate spectrogram images with proper output directory 
+    spectrogram_images = save_spectrogram_images(plots, output_directory)
+
+    # Prepare template variables including audio source path
+    template_vars = prepare_plotly_template_vars(
+        plots, methods, dir_name, use_db_scale, 
+        output_directory=output_directory, 
+        audio_directory=kwargs.get('audio_directory')
+    )
+
+    # ADD SPECTROGRAM DATA TO TEMPLATE VARS
+    template_vars['SPECTROGRAM_IMAGES'] = json.dumps(spectrogram_images)
+    template_vars['HAS_SPECTROGRAMS'] = any(img is not None for img in spectrogram_images)
+
+    # FIX THE GRID CALCULATION
+    # Get unique filenames (files) and methods
+    unique_files = set()
+    unique_methods = set()
+
+    for plot in plots:
+        # Extract base filename without method suffix
+        base_name = plot.filename.split(' (')[0] if ' (' in plot.filename else plot.filename
+        unique_files.add(base_name)
+        
+        # Get method name
+        if hasattr(plot, 'method_name'):
+            unique_methods.add(plot.method_name)
+
+    n_files = len(unique_files)
+    n_methods = len(unique_methods) if unique_methods else 1
+
+    # In the grid: rows = files, cols = methods
+    template_vars['N_ROWS'] = n_files
+    template_vars['N_COLS'] = n_methods
+    template_vars['TOTAL_PLOTS'] = len(plots)
+
+    print(f"DEBUG: Grid dimensions - {n_files} files × {n_methods} methods = {len(plots)} total plots")
+
+    # Use the Plotly template
+    #template_name = "jellyfish_dynamite_plotly.html"
+    template_name = "jellyfish_dynamo.html"
+
+    # Call the agnostic Jinja function
+    html_path = save_jellyfish_jinja(template_vars, template_name, base_filename, output_directory)
+
+    # Save pair and graph data (existing code from original function)
+    data_filename = f"{dir_name}_{base_filename}{nfft_suffix}_{jelfun.get_timestamp()}_pairdata.json"
+    data_path = os.path.join(output_directory, data_filename)
+
+    export_data = []
+    for plot in plots:
+        file_data = {
+            'filename': getattr(plot, 'filename', 'Untitled'),
+            'method': getattr(plot, 'method_name', 'Unknown'),
+            'pairs': []
+        }
+        if hasattr(plot, 'pairs'):
+            for pair in plot.pairs:
+                if 'f0' in pair and 'f1' in pair:
+                    file_data['pairs'].append({
+                        'f0': float(pair['f0']),
+                        'f1': float(pair['f1']),
+                        'ratio': float(pair['f1'] / pair['f0'])
+                    })
+        export_data.append(file_data)
+
+    with open(data_path, 'w', encoding='utf-8') as f:
+        json.dump(export_data, f, indent=2)
+
+    # Save graph data
+    graph_filename = f"{dir_name}_{base_filename}{nfft_suffix}_{jelfun.get_timestamp()}_graphdata.json"
+    graph_path = os.path.join(output_directory, graph_filename)
+
+    graph_export_data = []
+    for plot in plots:
+        graph_data = {'nodes': [], 'edges': []}
+        if hasattr(plot, 'get_graph_data'):
+            try:
+                raw_graph = plot.get_graph_data()
+                if 'nodes' in raw_graph:
+                    for node in raw_graph['nodes']:
+                        safe_node = {}
+                        for key, value in node.items():
+                            if hasattr(value, 'item'):
+                                safe_node[key] = value.item()
+                            elif isinstance(value, (np.ndarray, np.number)):
+                                safe_node[key] = float(value)
+                            else:
+                                safe_node[key] = value
+                        graph_data['nodes'].append(safe_node)
+                
+                if 'edges' in raw_graph:
+                    for edge in raw_graph['edges']:
+                        safe_edge = {}
+                        for key, value in edge.items():
+                            if hasattr(value, 'item'):
+                                safe_edge[key] = value.item()
+                            elif isinstance(value, (np.ndarray, np.number)):
+                                safe_edge[key] = float(value)
+                            else:
+                                safe_edge[key] = value
+                        graph_data['edges'].append(safe_edge)
+            except Exception as e:
+                print(f"Error processing graph data: {e}")
+        
+        file_data = {
+            'filename': getattr(plot, 'filename', 'Untitled'),
+            'method': getattr(plot, 'method_name', 'Unknown'),
+            'graph': graph_data
+        }
+        graph_export_data.append(file_data)
+
+    with open(graph_path, 'w', encoding='utf-8') as f:
+        json.dump(graph_export_data, f, indent=2)
+
+    print(f"Data saved to: {data_path}")
+    print(f"Graph data saved to: {graph_path}")
+
+    # # Start simple web server for audio compatibility
+    print(f"🎵 Starting web server for audio compatibility...")
+    serve_html_with_audio(html_path)
+
+    return html_path, data_path, graph_path
+
+
+
+## ##          ##    ## ## ##     ####  ##      ##
+##  ##       ##  ##     ##      ##      ##      ##
+##   ##    ##      ##   ##    ##        ##      ##
+##  ##     ## #### ##   ##    ##        ## #### ##
+##    ##   ##      ##   ##    ##        ##      ##
+##     ##  ##      ##   ##    ##        ##      ##
+##    ##   ##      ##   ##      ##      ##      ##
+##  ##     ##      ##   ##        ####  ##      ##
+
+
+
+def batch_process_all_directories(base_slicedir, methods=None, auto_select_peaks=[1, 2, 3, 4, 5], 
+                                       connect_all=True, export_data=True, save_plots=True):
+    """
+    Process all directories in base_slicedir automatically using the new auto-save functions.
+    """
+    
+    if methods is None:
+        methods = ["FFT_DUAL"]
+    
+    # Get all subdirectories
+    all_directories = [d.name for d in Path(base_slicedir).iterdir() 
+                  if d.is_dir()]
+    all_directories = natsorted(all_directories)
+    
+    print(f"Found {len(all_directories)} directories to process:")
+    for i, dirname in enumerate(all_directories[:5]):
+        print(f"  {i}: {dirname}")
+    if len(all_directories) > 5:
+        print(f"  ... and {len(all_directories) - 5} more")
+    
+    # Create output directory for batch results
+    daily_dir = jelfun.make_daily_directory()
+    batch_output_dir = os.path.join(daily_dir, f"batch_analysis_{jelfun.get_timestamp()}")
+    os.makedirs(batch_output_dir, exist_ok=True)
+    
+    batch_results = []
+    
+    for dir_idx, dirname in enumerate(all_directories):
+        dir_path = Path(base_slicedir) / dirname
+        
+        try:
+            print(f"\n=== batch_process_all_directories: Processing directory {dir_idx + 1}/{len(all_directories)}: {dirname} ===")
+            
+            # Select files
+            selected_files = select_audio_files(
+                dir_path,
+                range_start=0,
+                range_end=2,  # Adjust as needed
+                verbose=False
+            )
+            
+            if len(selected_files) == 0:
+                print(f"  No audio files found in {dirname}, skipping...")
+                batch_results.append({
+                    'directory': dirname,
+                    'status': 'error',
+                    'error': 'No audio files found',
+                    'files_processed': 0,
+                    'plots_generated': 0,
+                    'total_pairs': 0
+                })
+                continue
+            
+            print(f"  Processing {len(selected_files)} files...")
+            
+            # Use new auto-save function instead of the old method
+            html_path, png_path, plots = auto_save_after_analysis(
+                audio_directory=dir_path,
+                methods=methods,
+                selected_files=selected_files,
+                save_png=save_plots,
+                save_html=export_data,  # Generate HTML if we want data export
+                auto_select_peaks=auto_select_peaks
+            )
+            
+            if plots is None or len(plots) == 0:
+                print(f"  Analysis failed for {dirname}, skipping...")
+                batch_results.append({
+                    'directory': dirname,
+                    'status': 'error',
+                    'error': 'Analysis failed',
+                    'files_processed': len(selected_files),
+                    'plots_generated': 0,
+                    'total_pairs': 0
+                })
+                continue
+            
+            # Count pairs from the processed plots
+            total_pairs = 0
+            for plot in plots:
+                if hasattr(plot, 'pairs'):
+                    total_pairs += len(plot.pairs)
+            
+            # Export additional data if requested
+            if export_data:
+                print(f"  📊 Exporting additional data formats...")
+                
+                # CSV export - NEED TO FIX!!!!!
+                csv_data = []
+                
+                # JSON export
+                json_data = {
+                    'directory': dirname,
+                    'timestamp': jelfun.get_timestamp(),
+                    'methods': methods,
+                    'auto_selected_peaks': auto_select_peaks,
+                    'plots': []
+                }
+                
+                for plot_idx, plot in enumerate(plots):
+                    plot_data = {
+                        'plot_index': plot_idx,
+                        'filename': getattr(plot, 'filename', f'Plot_{plot_idx}'),
+                        'selected_peaks': getattr(plot, 'selected_peaks', []),
+                        'pairs': getattr(plot, 'pairs', [])
+                    }
+                    json_data['plots'].append(plot_data)
+                
+                json_filename = f"{dirname}_analysis_data.json"
+                json_path = os.path.join(batch_output_dir, json_filename)
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=2)
+                print(f"    Saved JSON: {json_filename}")
+            
+            # Store results for summary
+            batch_results.append({
+                'directory': dirname,
+                'status': 'success',
+                'files_processed': len(selected_files),
+                'plots_generated': len(plots),
+                'total_pairs': total_pairs,
+                'html_path': html_path,
+                'png_path': png_path
+            })
+            
+            print(f"  ✅ Success: {len(plots)} plots, {total_pairs} pairs total")
+
+        except Exception as e:
+            print(f"  ❌ ERROR processing {dirname}: {e}")
+            batch_results.append({
+                'directory': dirname,
+                'status': 'error',
+                'error': str(e),
+                'files_processed': 0,
+                'plots_generated': 0,
+                'total_pairs': 0
+            })
+            continue
+
+    # Save batch summary
+    summary_data = {
+        'batch_timestamp': jelfun.get_timestamp(),
+        'total_directories': len(all_directories),
+        'successful': len([r for r in batch_results if r['status'] == 'success']),
+        'failed': len([r for r in batch_results if r['status'] == 'error']),
+        'methods_used': methods,
+        'auto_selected_peaks': auto_select_peaks,
+        'total_files_processed': sum(r['files_processed'] for r in batch_results),
+        'total_plots_generated': sum(r['plots_generated'] for r in batch_results),
+        'total_pairs_created': sum(r['total_pairs'] for r in batch_results),
+        'results': batch_results
+    }
+    
+    summary_path = os.path.join(batch_output_dir, 'batch_summary.json')
+    with open(summary_path, 'w') as f:
+        json.dump(summary_data, f, indent=2)
+    
+    print(f"\n=== BATCH PROCESSING COMPLETE ===")
+    print(f"Output directory: {batch_output_dir}")
+    print(f"Successful: {summary_data['successful']}")
+    print(f"Failed: {summary_data['failed']}")
+    print(f"Total files processed: {summary_data['total_files_processed']}")
+    print(f"Total plots generated: {summary_data['total_plots_generated']}")
+    print(f"Total pairs created: {summary_data['total_pairs_created']}")
+    print(f"Summary saved to: {summary_path}")
+    
+    return batch_output_dir, batch_results
+
+def run_batch_analysis():
+    """Run batch analysis using the updated functions"""
+    
+    #existing directory setup
+    main_slicedir = all_slicedirs[65]  # Or whichever base directory you want
+    
+    # Get parent directory containing all slice directories
+    slice_parent = main_slicedir.parent  # This should contain all 70 subdirectories
+    
+    print(f"Running fixed batch analysis on: {slice_parent}")
+    print(f"Looking for subdirectories in: {slice_parent}")
+    
+    # Run updated batch processing
+    output_dir, results = batch_process_all_directories_fixed(
+        base_slicedir=str(slice_parent),
+        methods=["FFT_DUAL"],
+        auto_select_peaks=[1, 2, 3, 4, 5],
+        connect_all=True,
+        export_data=True,
+        save_plots=True
+    )
+    
+    print(f"Fixed batch processing complete! Results in: {output_dir}")
+    
+    return output_dir, results
+
+def batch_auto_select_and_connect_peaks(plots, auto_select_peaks=[1, 2, 3, 4, 5], connect_all=True):
+    """
+    Automatically select and connect peaks for batch processing.
+    This modifies the plots in-place before HTML generation.
+    """
+    for plot in plots:
+        if not hasattr(plot, 'peak_freqs') or len(plot.peak_freqs) == 0:
+            continue
+        
+        # Get detected peaks and powers
+        detectedPeaks = plot.peak_freqs
+        detectedPowers = plot.peak_powers
+        
+        # Create array of peak-power pairs and sort by power descending
+        peak_power_pairs = list(zip(detectedPeaks, detectedPowers))
+        peak_power_pairs.sort(key=lambda x: x[1], reverse=True)
+        
+        # Initialize selection structures if they don't exist
+        if not hasattr(plot, 'selected_peaks'):
+            plot.selected_peaks = []
+        if not hasattr(plot, 'pairs'):
+            plot.pairs = []
+        if not hasattr(plot, 'colors'):
+            plot.colors = ['red', 'green', 'purple', 'orange', 'brown', 'cyan', 'magenta']
+        
+        # Select the specified peaks
+        selected_freqs = []
+        for peak_num in auto_select_peaks:
+            if peak_num <= len(peak_power_pairs):
+                freq_to_select = peak_power_pairs[peak_num - 1][0]  # -1 for 0-indexing
+                plot.selected_peaks.append(freq_to_select)
+                selected_freqs.append(freq_to_select)
+        
+        # Connect all selected peaks if requested
+        if connect_all and len(selected_freqs) >= 2:
+            plot.pairs = []  # Clear existing pairs
+            selected_sorted = sorted(selected_freqs)
+            
+            # Create all possible pairs
+            pair_index = 0
+            for i in range(len(selected_sorted)):
+                for j in range(i + 1, len(selected_sorted)):
+                    f0 = selected_sorted[i]
+                    f1 = selected_sorted[j]
+                    ratio = f1 / f0
+                    color = plot.colors[pair_index % len(plot.colors)]
+                    
+                    pair = {
+                        'f0': f0,
+                        'f1': f1, 
+                        'ratio': ratio,
+                        'color': color
+                    }
+                    plot.pairs.append(pair)
+                    pair_index += 1
+        
+        print(f"    📍 {plot.filename}: Selected {len(selected_freqs)} peaks, created {len(plot.pairs)} pairs")
+
+def generate_png_with_plotly_static(plots, dir_name, output_directory, auto_select_peaks=[1, 2, 3, 4, 5], connect_all=True):
+    """
+    Generate PNG that exactly replicates the HTML Plotly layout with spectrograms + PSD overlays.
+    """
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        import plotly.io as pio
+        
+        print(f"  📊 Creating static Plotly figure matching HTML layout...")
+        
+        # Auto-select peaks in plots (modify plots in-place)
+        # batch_auto_select_and_connect_peaks(plots, auto_select_peaks, connect_all)
+        
+        # Only auto-select peaks if they haven't been selected yet
+        if not hasattr(plots[0], 'selected_peaks') or not plots[0].selected_peaks:
+            batch_auto_select_and_connect_peaks(plots, auto_select_peaks, connect_all)
+
+        # Calculate grid dimensions (same as HTML template)
+        unique_files = set()
+        unique_methods = set()
+        for plot in plots:
+            base_name = plot.filename.split(' (')[0] if ' (' in plot.filename else plot.filename
+            unique_files.add(base_name)
+            if hasattr(plot, 'method_name'):
+                unique_methods.add(plot.method_name)
+        
+        n_files = len(unique_files)
+        n_methods = len(unique_methods) if unique_methods else 1
+        n_rows = n_files
+        n_cols = n_methods
+        
+        print(f"  📐 Grid: {n_rows} rows × {n_cols} cols = {len(plots)} plots")
+        
+        # Calculate vertical spacing (same as template)
+        if n_rows > 1:
+            v_spacing = min(0.15, 0.2 / (n_rows - 1))
+        else:
+            v_spacing = 0.15
+        
+        # Create subplot figure (exact same parameters as template)
+        fig = make_subplots(
+            rows=n_rows, 
+            cols=n_cols,
+            subplot_titles=[getattr(plot, 'filename', f'Plot {i+1}') for i, plot in enumerate(plots)],
+            vertical_spacing=v_spacing,
+            horizontal_spacing=0.08
+        )
+        
+        # Process each plot (replicating template logic)
+        for i, plot in enumerate(plots):
+            row = i // n_cols + 1
+            col = i % n_cols + 1
+            
+            print(f"  🎨 Processing plot {i+1}: {getattr(plot, 'filename', 'Unknown')}")
+            
+            # Get current scale data (matching template logic)
+            use_db_scale = False  # template uses linear scale by default
+            frequencies = plot.frequencies
+            
+            if use_db_scale:
+                current_psd = plot.psd_db if hasattr(plot, 'psd_db') else plot.psd_linear
+                y_label = "PSD (dB)"
+            else:
+                current_psd = plot.psd_linear if hasattr(plot, 'psd_linear') else plot.psd_db
+                y_label = "PSD (linear)"
+            
+            # 1. ADD SPECTROGRAM AS BACKGROUND (if available)
+            if (hasattr(plot, 'has_spectrogram') and plot.has_spectrogram and 
+                hasattr(plot, 'spectrogram_linear') and plot.spectrogram_linear is not None):
+                
+                print(f"    🌈 Adding spectrogram background for plot {i}")
+                
+                # Scale time to PSD range (exact same logic as template)
+                psd_min = np.min(current_psd)
+                psd_max = np.max(current_psd)
+                time_min = np.min(plot.times)
+                time_max = np.max(plot.times)
+                
+                # Scale times to use 50% of PSD range at the top (  exact logic)
+                psd_range = psd_max - psd_min
+                scaled_times = []
+                for t in plot.times:
+                    normalized_time = (t - time_min) / (time_max - time_min)  # 0 to 1
+                    scaled_time = psd_max - (psd_range * 0.5) + (normalized_time * psd_range * 0.5)
+                    scaled_times.append(scaled_time)
+                
+                # Use dB version of spectrogram (  template uses spectrogram_db)
+                spec_array = plot.spectrogram_db
+                spec_array_transposed = spec_array.T
+                
+                # Add spectrogram heatmap (exact same as template)
+                fig.add_trace(
+                    go.Heatmap(
+                        x=frequencies,
+                        y=scaled_times,
+                        z=spec_array_transposed.tolist(),
+                        colorscale='magma',
+                        opacity=1.0,
+                        showscale=False,
+                        name=f"spectrogram_{i}",
+                        hovertemplate='Freq: %{x:.1f} Hz<br>Time: %{y:.3f} s<br>Power: %{z:.2f}<extra></extra>',
+                        zmin=np.min(spec_array),
+                        zmax=np.max(spec_array),
+                    ),
+                    row=row, col=col
+                )
+            
+            # 2. ADD MAIN PSD LINE (exact same as template)
+            fig.add_trace(
+                go.Scatter(
+                    x=frequencies,
+                    y=current_psd,
+                    mode='lines',
+                    name=f"psd_{i}",
+                    line=dict(color='black', width=2),
+                    showlegend=False
+                ),
+                row=row, col=col
+            )
+            
+            # 3. ADD DETECTED PEAK MARKERS (gray dots, exact same as template)
+            if hasattr(plot, 'peak_freqs') and hasattr(plot, 'peak_powers'):
+                # Calculate peak powers for current scale
+                peak_powers_current = []
+                for peak_freq in plot.peak_freqs:
+                    freq_idx = np.argmin(np.abs(plot.frequencies - peak_freq))
+                    if use_db_scale:
+                        peak_powers_current.append(plot.psd_db[freq_idx])
+                    else:
+                        peak_powers_current.append(plot.psd_linear[freq_idx])
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=plot.peak_freqs,
+                        y=peak_powers_current,
+                        mode='markers',
+                        name=f"peaks_{i}",
+                        marker=dict(color='gray', size=5, opacity=0.7),
+                        showlegend=False
+                    ),
+                    row=row, col=col
+                )
+            
+            # 4. ADD SELECTED PEAKS (blue markers with labels)
+            if hasattr(plot, 'selected_peaks') and plot.selected_peaks:
+                print(f"    🎯 Adding {len(plot.selected_peaks)} selected peaks")
+                
+                selected_powers = []
+                for freq in plot.selected_peaks:
+                    freq_idx = np.argmin(np.abs(plot.frequencies - freq))
+                    if use_db_scale:
+                        selected_powers.append(plot.psd_db[freq_idx])
+                    else:
+                        selected_powers.append(plot.psd_linear[freq_idx])
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=plot.selected_peaks,
+                        y=selected_powers,
+                        mode='markers+text',
+                        marker=dict(color='blue', size=10, line=dict(color='black', width=1)),
+                        text=[f"{f:.0f}" for f in plot.selected_peaks],
+                        textposition='top center',
+                        textfont=dict(color='blue', size=10),
+                        name=f"selected_{i}",
+                        showlegend=False
+                    ),
+                    row=row, col=col
+                )
+            
+            # 5. ADD CONNECTING LINES FOR PAIRS
+            if hasattr(plot, 'pairs') and plot.pairs:
+                print(f"    🔗 Adding {len(plot.pairs)} connecting lines")
+                
+                for pair_idx, pair in enumerate(plot.pairs):
+                    # Get powers for paired frequencies
+                    f0_idx = np.argmin(np.abs(plot.frequencies - pair['f0']))
+                    f1_idx = np.argmin(np.abs(plot.frequencies - pair['f1']))
+                    
+                    if use_db_scale:
+                        f0_power = plot.psd_db[f0_idx]
+                        f1_power = plot.psd_db[f1_idx]
+                    else:
+                        f0_power = plot.psd_linear[f0_idx]
+                        f1_power = plot.psd_linear[f1_idx]
+                    
+                    # Connecting line
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[pair['f0'], pair['f1']],
+                            y=[f0_power, f1_power],
+                            mode='lines+markers',
+                            line=dict(color=pair['color'], width=2),
+                            marker=dict(color='blue', size=10, line=dict(color='black', width=1)),
+                            name=f"pair_{i}_{pair_idx}",
+                            showlegend=False
+                        ),
+                        row=row, col=col
+                    )
+            
+            # 6. ADD SPECTRAL RIDGES (if available, cyan lines)
+            if (hasattr(plot, 'has_spectrogram') and plot.has_spectrogram and 
+                hasattr(plot, 'spectrogram_linear') and plot.spectrogram_linear is not None):
+                
+                try:
+                    # Calculate ridge data (same as Python code)
+                    ridge_times, ridge_freqs = find_max_energy_ridge(
+                        plot.spectrogram_linear, plot.frequencies, plot.times
+                    )
+                    
+                    # Scale ridge times same as spectrogram
+                    psd_min = np.min(current_psd)
+                    psd_max = np.max(current_psd)
+                    time_min = np.min(plot.times)
+                    time_max = np.max(plot.times)
+                    psd_range = psd_max - psd_min
+                    
+                    scaled_ridge_times = []
+                    for t in ridge_times:
+                        normalized_time = (t - time_min) / (time_max - time_min)
+                        scaled_time = psd_max - (psd_range * 0.5) + (normalized_time * psd_range * 0.5)
+                        scaled_ridge_times.append(scaled_time)
+                    
+                    fig.add_trace(
+                        go.Scatter(
+                            x=ridge_freqs,
+                            y=scaled_ridge_times,
+                            mode='lines',
+                            line=dict(color='cyan', width=3, dash='solid'),
+                            name=f"ridge_{i}",
+                            showlegend=False
+                        ),
+                        row=row, col=col
+                    )
+                    print(f"    🌊 Added spectral ridge")
+                except Exception as e:
+                    print(f"    ⚠️ Ridge calculation failed: {e}")
+            
+            # Set axis properties (same range as plots)
+            if hasattr(plot, 'plot_fmin') and hasattr(plot, 'plot_fmax'):
+                fig.update_xaxes(range=[plot.plot_fmin, plot.plot_fmax], row=row, col=col)
+            fig.update_xaxes(title_text="Frequency (Hz)", row=row, col=col)
+            fig.update_yaxes(title_text=y_label, row=row, col=col)
+
+
+            # 7. ADD SPECTRAL VEINS (if available)
+            if (hasattr(plot, 'has_spectrogram') and plot.has_spectrogram and 
+                hasattr(plot, 'spectrogram_linear') and plot.spectrogram_linear is not None):
+                
+                try:
+                    # Calculate spectral veins
+                    veins = find_spectral_veins(
+                        plot.spectrogram_linear, plot.frequencies, plot.times, 
+                        num_veins=getattr(plot, 'num_veins', 6)
+                    )
+                    
+                    vein_colors = ['coral', 'yellow', 'magenta', 'lime', 'orange', 'teal']
+                    
+                    for vein_idx, vein in enumerate(veins[:len(vein_colors)]):
+                        if len(vein['freqs']) > 0:
+                            # Scale vein times same as ridge times
+                            psd_min = np.min(current_psd)
+                            psd_max = np.max(current_psd)
+                            time_min = np.min(plot.times)
+                            time_max = np.max(plot.times)
+                            psd_range = psd_max - psd_min
+                            
+                            scaled_vein_times = []
+                            for t in vein['times']:
+                                normalized_time = (t - time_min) / (time_max - time_min)
+                                scaled_time = psd_max - (psd_range * 0.5) + (normalized_time * psd_range * 0.5)
+                                scaled_vein_times.append(scaled_time)
+                            
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=vein['freqs'],
+                                    y=scaled_vein_times,
+                                    mode='lines',
+                                    line=dict(color=vein_colors[vein_idx], width=2, dash='dash'),
+                                    name=f"vein_{i}_{vein_idx}",
+                                    showlegend=False
+                                ),
+                                row=row, col=col
+                            )
+                    
+                    print(f"    🔗 Added {len(veins)} spectral veins")
+                except Exception as e:
+                    print(f"    ⚠️ Vein calculation failed: {e}")
+
+
+
+        # Update layout (matching template dimensions)
+        fig.update_layout(
+            title=f"Interactive Spectral Analysis - Dir: {dir_name} - generate_png_with_plotly_static",
+            height=max(600, 500 * n_rows),
+            width=max(800, 300 * n_cols),
+            template="plotly_white",
+            margin=dict(l=50, r=50, t=100, b=50),
+            font=dict(size=10)
+        )
+        
+        # Save as PNG
+        png_filename = f"{dir_name}_staticplot.png"
+        png_path = os.path.join(output_directory, png_filename)
+        os.makedirs(output_directory, exist_ok=True)
+
+        
+        print(f"  💾 Saving complete analysis PNG: {png_filename}")
+        pio.write_image(fig, png_path, format='png', width=fig.layout.width, height=fig.layout.height, scale=2)
+        print(f"  ✅ Complete analysis PNG saved successfully")
+        print(f"  ✅ {png_path}")
+        
+        return png_path
+        
+    except ImportError:
+        print(f"  ❌ kaleido not installed. Run: pip install kaleido")
+        return None
+    except Exception as e:
+        print(f"  ❌ Static PNG generation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+                                                        ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+                                                        ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+# WITH GEOLOGY MODS                                     ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+def main_interactive():
+    """  original interactive analysis"""
+    import platform
+
+    try:
+        import ipympl
+        from IPython import get_ipython
+        get_ipython().run_line_magic('matplotlib', 'widget')
+    except (ImportError, AttributeError):
+        try:
+            from IPython import get_ipython
+            get_ipython().run_line_magic('matplotlib', 'notebook')
+        except:
+            if platform.system() == 'Darwin': #macos
+                matplotlib.use('Agg')
+            else:
+                matplotlib.use('TkAgg')
+                plt.ion()
+
+    # Update path as needed
+    #main_slicedir = all_slicedirs[57]
+    main_slicedir = all_slicedirs[57]
+
+    # RESOLUTION SETTINGS
+    # Option 1: Legacy mode (simple)
+    # nfft = 2048  # Will set psd_n_fft=2048, spec_n_fft=1024
+    
+    # Option 2: Custom dual-resolution mode (comment out nfft above if using this)
+    psd_n_fft = 1024      # Higher frequency resolution for PSD/peaks
+    spec_n_fft = 512     # Moderate frequency resolution for spectrogram
+    
+    # If unspecified, hop_length is calculated based off nfft values
+    # psd_hop_length = 256  # Fine time steps for PSD
+    # spec_hop_length = 128 # Very fine time steps for smooth ridges/veins
+
+    # Minimal testing: 
+    methods = ["FFT_DUAL"]
+    # More Options:
+    # methods = ["FFT_DUAL", "CQT", "Multi-Res", "Chirplet Zero"]
+    
+    selected_files = select_audio_files(
+        main_slicedir,
+        range_start=0,
+        range_end=None # all files
+    )
+
+    # MATPLOTLIB PYTHON PLOTS
+    fig, plots, _, dir_short_name = compare_methods_psd_analysis(
+        audio_directory=main_slicedir,
+        max_cols=len(methods), 
+        max_pairs=10,
+
+        # Previous universal version: 
+        # n_fft=nfft,
+        # hop_length=hop_length,
+
+        # Custom dual-resolution: 
+        psd_n_fft=1024, spec_n_fft=512, 
+        # psd_hop_length=psd_hop_length,spec_hop_length=spec_hop_length,
+
+        peak_fmin=100,
+        peak_fmax=5000,
+        plot_fmin=100,
+        plot_fmax=5000,
+        selected_files=selected_files,
+        methods=methods,
+        use_db_scale=False, 
+        num_veins=7
+    )
+
+    # HTML PLOTLY PLOTS
+    if fig is not None:
+        plt.show()
+        html_path, data_path, graph_path = save_jellyfish_plotly(
+            plots, 
+            base_filename=f"psd_analysis_plotly_{dir_short_name}",
+            methods=methods,
+            dir_name=dir_short_name,
+            use_db_scale=False, 
+            # n_fft=nfft, hop_length=hop_length,
+            psd_n_fft=psd_n_fft, spec_n_fft=spec_n_fft, 
+            show_ridge=True, 
+            show_veins=True, 
+            audio_directory=main_slicedir  # Pass source audio directory for path calculation
+        )
+    else:
+        print("No audio files found or analysis failed.")
+                                                        ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+
+def main_batch():
+    """Run batch analysis on all directories"""
+    
+    # DEBUG: Let's see what we're working with
+    print(f"DEBUG: all_slicedirs[0] = {all_slicedirs[0]}")
+    print(f"DEBUG: type = {type(all_slicedirs[0])}")
+    
+    # Get parent directory containing all slice directories
+    from pathlib import Path
+    
+    try:
+        slice_parent = Path(all_slicedirs[0]).parent
+        print(f"DEBUG: slice_parent = {slice_parent}")
+        print(f"DEBUG: slice_parent type = {type(slice_parent)}")
+    except Exception as e:
+        print(f"DEBUG: Error creating slice_parent: {e}")
+        return None, None
+    
+    print(f"Running batch analysis on: {slice_parent}")
+    print(f"Looking for subdirectories in: {slice_parent}")
+    
+    # Run batch processing
+    output_dir, results = batch_process_all_directories(
+        base_slicedir=str(slice_parent),  # Convert Path back to string
+        methods=["FFT_DUAL"],
+        auto_select_peaks=[1, 2, 3, 4, 5],
+        connect_all=True,
+        export_data=True,
+        save_plots=True
+    )
+    
+    print(f"Batch processing complete! Results in: {output_dir}")
+    return output_dir, results
+                                                        ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+
+def main():
+    """Main function with mode selection"""
+    print("🔬 Jellyfish Dynamite Analysis")
+    print("=" * 50)
+    print("Choose analysis mode:")
+    print("1. Interactive Mode (single directory, manual peak selection)")
+    print("2. Batch Mode (all directories, automatic processing)")
+    print("3. Exit")
+    
+    choice = input("\nEnter   choice (1, 2, or 3): ").strip()
+    if choice == '1':
+        print("\n🔍 Starting Interactive Mode...")
+        main_interactive()
+    elif choice == '2':
+        print("\n⚡ Starting Batch Mode...")
+        main_batch()
+    elif choice == '3':
+        print("👋 Goodbye!")
+    else:
+        print("❌ Invalid choice. Please enter 1, 2, or 3.")
+                                                        ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+if __name__ == "__main__":                            ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+    main()                                            ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+                                                        ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ ## ^-^ 
+
+
