@@ -38,36 +38,44 @@ A Flask web app for analyzing and comparing audio files using multiple spectral 
    - Extract and navigate to the folder
 
 2. **Create and activate virtual environment:**
+   ## Create:
    ```bash
    python -m venv venv
    ```
+   ## Acvitate:
 
-   # On Windows:
+   ### On Windows:
    ```bash
    venv\Scripts\activate
    ```
 
-   # On Mac/Linux:
+   ### On Mac/Linux:
    ```bash
    source venv/bin/activate
    ```
 
 3. **Install dependencies:**
+   ## Make sure pip is pointing to the venv by running:
    ```bash
-   pip install -r requirements.txt
+   python -m pip install --upgrade pip
    ```
 
-4. **Run the application:**
+   ## Then install the requirements inside the venv using that pip:
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+
+5. **Run the application:**
    ```bash
    python jelly_app.py
    ```
 
-5. **Open browser** and go to:
+6. **Open browser** and go to:
    ```
    http://localhost:5000
    ```
 
-6. **Analyze Audio**
+7. **Analyze Audio**
 
 The `test_audio/` folder contains sample audio files to test the application. 
 
