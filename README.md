@@ -427,8 +427,7 @@ for plot in plots:
 
 ## License
 
-MIT License
-Copyright 2025-2026 by laelume aka Ashlae Blum'e
+Copyright 2025-2026 by laelume aka Ashlae Blum'e. Licensed under GPL 3.0. 
 
 ## Support
 
